@@ -29,6 +29,7 @@ import multiprocessing as mp
 from itertools import groupby, count, chain
 import numpy as np
 
+
 class LogLoader(object):
 
     def __init__(self, logformat, n_workers=1):
@@ -45,15 +46,15 @@ class LogLoader(object):
         lines = []
         with open(log_filepath, 'r') as fid:
             lines = fid.readlines()
-        
+
         log_messages = []
-        if self.n_workers == 1: 
+        if self.n_workers == 1:
             log_messages = formalize_message(enumerate(lines), self.regex, self.headers)
         else:
             chunk_size = np.ceil(len(lines) / float(self.n_workers))
-            chunks = groupby(enumerate(lines), key=lambda k, line=count(): next(line)//chunk_size)
+            chunks = groupby(enumerate(lines), key=lambda k, line=count(): next(line) // chunk_size)
             log_chunks = [list(chunk) for _, chunk in chunks]
-            print('Read %d log chunks in parallel'%len(log_chunks))
+            print('Read %d log chunks in parallel' % len(log_chunks))
             pool = mp.Pool(processes=self.n_workers)
             result_chunks = [pool.apply_async(formalize_message, args=(chunk, self.regex, self.headers))
                              for chunk in log_chunks]

@@ -24,7 +24,7 @@ def evaluate(groundtruth, parsedresult):
     -------
         f_measure : float
         accuracy : float
-    """ 
+    """
     df_groundtruth = pd.read_csv(groundtruth)
     df_parsedlog = pd.read_csv(parsedresult)
     # Remove invalid groundtruth event Ids
@@ -32,8 +32,10 @@ def evaluate(groundtruth, parsedresult):
     df_groundtruth = df_groundtruth.loc[null_logids]
     df_parsedlog = df_parsedlog.loc[null_logids]
     (precision, recall, f_measure, accuracy) = get_accuracy(df_groundtruth['EventId'], df_parsedlog['EventId'])
-    print('Precision: %.4f, Recall: %.4f, F1_measure: %.4f, Parsing_Accuracy: %.4f'%(precision, recall, f_measure, accuracy))
+    print('Precision: %.4f, Recall: %.4f, F1_measure: %.4f, Parsing_Accuracy: %.4f' % (
+    precision, recall, f_measure, accuracy))
     return f_measure, accuracy
+
 
 def get_accuracy(series_groundtruth, series_parsedlog, debug=False):
     """ Compute accuracy metrics between log parsing results and ground truth
@@ -67,7 +69,7 @@ def get_accuracy(series_groundtruth, series_parsedlog, debug=False):
             parsed_pairs += scipy.misc.comb(count, 2)
 
     accurate_pairs = 0
-    accurate_events = 0 # determine how many lines are correctly parsed
+    accurate_events = 0  # determine how many lines are correctly parsed
     for parsed_eventId in series_parsedlog_valuecounts.index:
         logIds = series_parsedlog[series_parsedlog == parsed_eventId].index
         series_groundtruth_logId_valuecounts = series_groundtruth[logIds].value_counts()
@@ -89,10 +91,3 @@ def get_accuracy(series_groundtruth, series_parsedlog, debug=False):
     f_measure = 2 * precision * recall / (precision + recall)
     accuracy = float(accurate_events) / series_groundtruth.size
     return precision, recall, f_measure, accuracy
-
-
-
-
-
-
-

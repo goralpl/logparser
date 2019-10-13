@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import sys
-sys.path.append('../')
 from logparser import AEL
 
 input_dir     = '../logs/HDFS/' # The input directory of log file

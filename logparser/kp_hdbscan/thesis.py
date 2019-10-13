@@ -20,21 +20,23 @@ class KpHdbscan():
         :return:
         """
         logs = []
-        with open(self.log_path, 'r') as f:
+        line_count = 0
+        with open(self.log_path, 'r',encoding='utf-8') as f:
             for num, line in enumerate(f):
-                logs.append({"line": num, "log": line.rstrip('\n')})
+                logs.append({"line": num, "log": line[16:]})
+                line_count = line_count + 1
+                # if line_count > 10:
+                #     break
 
         self.log_list = logs
 
         return logs
 
-    def tokenize_logs(self, n_gram, original_message):
+    def tokenize_logs(self, n_gram, original_message, encoded=True):
 
         tokens = []
 
         sliding_windows_messages = [original_message[i:i + n_gram] for i in range(len(original_message) - 2)]
-
-        index = 0
 
         # Iterate each n-gram.
         for sliding_windows_message in sliding_windows_messages:
@@ -42,18 +44,20 @@ class KpHdbscan():
             # If the n-gram matches our windows size then encode and store the result.
             if len(sliding_windows_message) == n_gram:
 
-                # list to store encoded array
-                encoded_string = []
+                if encoded:
 
-                # encode the string into number representation
-                for char in sliding_windows_message:
-                    encoded_string.append(ord(char))
+                    # list to store encoded array
+                    encoded_string = []
 
-                # sliding_windows_messages_all.append(sliding_windows_message)
+                    # encode the string into number representation
+                    for char in sliding_windows_message:
+                        encoded_string.append(ord(char))
 
-                tokens.append(encoded_string)
+                    # sliding_windows_messages_all.append(sliding_windows_message)
 
-                index = index + 1
+                    tokens.append(encoded_string)
+                else:
+                    tokens.append(sliding_windows_message)
 
         return tokens
 

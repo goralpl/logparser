@@ -136,145 +136,90 @@ labels_probabilities_vectors = pd.concat([pd.DataFrame(labels_probabilities), pd
 
 user_defined_pd_columns = ['cluster', 'cluster_probability']
 
-print("debug")
-
 # Get columns for new Data Frame.
 labels_probabilities_vectors_columns = KpPandasDataFrameHelper.create_column_headers(
     user_defined_columns=user_defined_pd_columns, n_gram_size=n_gram_size, prepend_str='c{}',
     function_timer=ft)
 
-print("debug")
-
 # Assign the column labels to the DataFrame
 labels_probabilities_vectors.columns = labels_probabilities_vectors_columns
-
-# Add empty cluster_variance column
-labels_probabilities_vectors['cluster_variance'] = -1
-user_defined_pd_columns.append('cluster_variance')
 
 # Add empty decoded_vector column
 labels_probabilities_vectors['decoded_vector'] = "decoded"
 user_defined_pd_columns.append('decoded_vector')
 
-# Get the column indexes for for the vector columns
-col_indexes_vector_columns = [col for col in labels_probabilities_vectors.columns if col not in user_defined_pd_columns]
+# Get the column indexes for for the vector columns. Vector columns are the ones we will be performing operations on.
+col_indexes_vector_columns_names = [col for col in labels_probabilities_vectors.columns if
+                                    col not in user_defined_pd_columns]
 
-print("debug")
-
-zero_variance_cluster_rows = []
-for idx, cluster_number in enumerate(range(labels.min(), labels.max() + 1, 1)):
-
-    print("Running {} of {}".format(idx, labels.max() + 1))
-
-    # Reset Timer
+# Get the column index numbers for for the vector columns. Vector columns are the ones we will be performing operations
+# on.
+col_indexes_vector_columns = [labels_probabilities_vectors.columns.get_loc(col) for col in
+                              labels_probabilities_vectors.columns if col not in user_defined_pd_columns]
+if ft:
+    # Start Timer
     start_time = time.time()
 
-    # tmp_list will contain the label, probability and vectors that belong to cluster_number
-    tmp_list = labels_probabilities_vectors[labels_probabilities_vectors['cluster'] == cluster_number]
+# We will use group by to perform operations on each cluster
+cluster_similarity_sum_of_variances = labels_probabilities_vectors.groupby('cluster')[
+    col_indexes_vector_columns_names].var().sum(axis=1)
 
-    print("debug")
+# Create a new column for the similarity measure
+labels_probabilities_vectors['cluster_similarity_sum_of_variances'] = labels_probabilities_vectors['cluster'].map(
+    cluster_similarity_sum_of_variances.to_dict())
 
-    print("Created tmp_list \t\t\t\t %s seconds ---" % (time.time() - start_time))
+if ft:
+    print("cluster_similarity_sum_of_variances Computed \t\t\t\t %s seconds ---" % (time.time() - start_time))
 
-    # Reset Timer
+if ft:
+    # Start Timer
     start_time = time.time()
 
-    # Get the Index values and store them
-    tmp_indexes = list(tmp_list.index.values)
+# We will use group by to perform operations on each cluster
+cluster_similarity_mean_of_variances = labels_probabilities_vectors.groupby('cluster')[
+    col_indexes_vector_columns_names].var().mean(axis=1)
 
-    print("debug")
+# Create a new column for the similarity measure
+labels_probabilities_vectors['cluster_similarity_mean_of_variances'] = labels_probabilities_vectors['cluster'].map(
+    cluster_similarity_mean_of_variances.to_dict())
 
-    print("Created tmp_indexes \t\t\t\t %s seconds ---" % (time.time() - start_time))
+if ft:
+    print("cluster_similarity_mean_of_variances Computed \t\t\t\t %s seconds ---" % (time.time() - start_time))
 
-    # Reset Timer
+
+if ft:
+    # Start Timer
     start_time = time.time()
 
-    # Only keep the vectors
-    tmp_list_vectors = tmp_list[labels_probabilities_vectors.columns[-n_gram_size:]]
+# We will use group by to perform operations on each cluster
+cluster_similarity_mean_of_std = labels_probabilities_vectors.groupby('cluster')[
+    col_indexes_vector_columns_names].std().mean(axis=1)
 
-    print("debug")
+# Create a new column for the similarity measure
+labels_probabilities_vectors['cluster_similarity_mean_of_std'] = labels_probabilities_vectors['cluster'].map(
+    cluster_similarity_mean_of_std.to_dict())
 
-    print("Created tmp_list_vectors \t\t\t\t %s seconds ---" % (time.time() - start_time))
+if ft:
+    print("cluster_similarity_mean_of_std Computed \t\t\t\t %s seconds ---" % (time.time() - start_time))
 
-    # Reset Timer
+
+if ft:
+    # Start Timer
     start_time = time.time()
 
-    # Get the variance for each column
-    variance = list(tmp_list_vectors.var(axis=0))
+# Get our decoded tokens into a dictionary. We will map back to the Pandas Data Frame using th index.
+decoded_tokens = labels_probabilities_vectors[col_indexes_vector_columns_names].applymap(KpHdbscan.decode_token).sum(
+    axis=1).to_dict()
 
-    print("debug")
+# Create a new column for the decoded tokens
+labels_probabilities_vectors['decoded_vector'] = labels_probabilities_vectors.index.to_series().map(decoded_tokens)
 
-    print("Calculated variance \t\t\t\t %s seconds ---" % (time.time() - start_time))
+if ft:
+    print("labels_probabilities_vectors['decoded_vector'] Computed \t\t\t\t %s seconds ---" % (time.time() - start_time))
 
-    # Reset Timer
-    start_time = time.time()
+labels_probabilities_vectors.to_csv("labels_probabilities_vectors.csv")
 
-    # Get the column index for cluster_variance so we can use it later
-    col_index_cluster_variance = labels_probabilities_vectors.columns.get_loc('cluster_variance')
-
-    print("debug")
-
-    print("Created col_index_cluster_variance \t\t\t\t %s seconds ---" % (time.time() - start_time))
-
-    # Reset Timer
-    start_time = time.time()
-
-    # Assign the sum of column variances to each row that was in the cluster
-    labels_probabilities_vectors.iloc[tmp_indexes, col_index_cluster_variance] = sum(variance)
-
-    print("debug")
-
-    print("Calculated sum(variance) \t\t\t\t %s seconds ---" % (time.time() - start_time))
-
-    # Reset Timer
-    start_time = time.time()
-
-    # Get the column index for decoded_vector so we can use it later.
-    col_index_decoded_vector = labels_probabilities_vectors.columns.get_loc('decoded_vector')
-
-    print("debug")
-
-    print("Calculated col_index_decoded_vector \t\t\t\t %s seconds ---" % (time.time() - start_time))
-
-    # Reset Timer
-    start_time = time.time()
-
-    # Decode Token
-    for tmp_index in tmp_indexes:
-        labels_probabilities_vectors.iloc[tmp_index, col_index_decoded_vector] = k.decode_token(
-            labels_probabilities_vectors.iloc[tmp_index, col_indexes_vector_columns].tolist())
-
-    print("debug")
-
-    print("Calculated decoded_token \t\t\t\t %s seconds ---" % (time.time() - start_time))
-
-    # Reset Timer
-    start_time = time.time()
-
-    # If the variance is 0 for all columns then add the pandas index to a list
-    # if sum(variance) < 20:
-    if sum(variance) < 20:
-        for t in tmp_indexes:
-            zero_variance_cluster_rows.append(t)
-
-    print("debug")
-
-    print("Calculated zero_variance_cluster_rows \t\t\t\t %s seconds ---" % (time.time() - start_time))
-
-labels_probabilities_vectors_zero_variance = labels_probabilities_vectors.iloc[zero_variance_cluster_rows, :]
-
-labels_probabilities_vectors_zero_variance.to_csv("variance_inspection.csv")
-
-labels_probabilities_vectors_zero_variance.drop_duplicates(keep='first', inplace=True)
-
-with open('filename.pickle', 'wb') as handle:
-    pickle.dump(labels_probabilities_vectors_zero_variance, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-# with open('filename.pickle', 'rb') as handle:
-#     labels_probabilities_vectors_zero_variance = pickle.load(handle)_
-
-
-relevent_tokens = labels_probabilities_vectors_zero_variance['decoded_vector'].tolist()
+relevent_tokens = labels_probabilities_vectors['decoded_vector'].tolist()
 
 for relevent_token in relevent_tokens:
     for index, log in enumerate(logs):

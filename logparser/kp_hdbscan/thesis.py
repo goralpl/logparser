@@ -48,7 +48,8 @@ class KpHdbscan:
         return logs
 
     @staticmethod
-    def create_standard_log_dictionary(logs, n_gram_size, encoding_method="default", function_timer=False):
+    def create_standard_log_dictionary(logs, n_gram_size, encoding_method="default", function_timer=False,
+                                       tokenizing_method='sliding_window'):
         """
         Tokenize the log message using sliding window method.
         Each log is a list with the following:
@@ -74,8 +75,8 @@ class KpHdbscan:
 
         for log in logs:
             log['tokens'] = KpHdbscan.tokenize_logs(n_gram_size, log['log'], encoded=True,
-                                                    encoding_method=encoding_method)
-            log['tokens_decoded'] = KpHdbscan.tokenize_logs(n_gram_size, log['log'], encoded=False)
+                                                    encoding_method=encoding_method, tokenizing_method=tokenizing_method)
+            log['tokens_decoded'] = KpHdbscan.tokenize_logs(n_gram_size, log['log'], encoded=False,tokenizing_method=tokenizing_method)
             log['relevant_tokens'] = []
             log['relevant_tokens_padded'] = []
             log['log_as_lst'] = [None] * len(log['log'])
@@ -115,7 +116,8 @@ class KpHdbscan:
         return vec_logs
 
     @staticmethod
-    def tokenize_logs(n_gram, original_message, encoded=True, encoding_method="default"):
+    def tokenize_logs(n_gram, original_message, encoded=True, encoding_method="default",
+                      tokenizing_method="sliding_window"):
         """
 
         :param n_gram:
@@ -128,24 +130,37 @@ class KpHdbscan:
         # Empty list to store the final tokens
         tokens = []
 
-        # Take the original log message and create candidate tokens. We create candidate tokens by applying
-        # A sliding window to the original log message of size n_gram.
-        candidate_tokens = [original_message[i:i + n_gram] for i in range(len(original_message) - 2)]
+        if tokenizing_method == "sliding_window":
 
-        # Iterate over each candidate token to see if it's going ot be added to tokens array.
-        for candidate_token in candidate_tokens:
+            # Take the original log message and create candidate tokens. We create candidate tokens by applying
+            # A sliding window to the original log message of size n_gram.
+            candidate_tokens = [original_message[i:i + n_gram] for i in range(len(original_message) - 2)]
 
-            # If the n-gram matches our windows size then encode and store the result.
-            if len(candidate_token) == n_gram:
+            # Iterate over each candidate token to see if it's going ot be added to tokens array.
+            for candidate_token in candidate_tokens:
 
-                # Store the token as encoded or regular string.
-                if encoded:
+                # If the n-gram matches our windows size then encode and store the result.
+                if len(candidate_token) == n_gram:
 
-                    encoded_token = KpHdbscan.encode_token(candidate_token, encoding_method)
+                    # Store the token as encoded or regular string.
+                    if encoded:
 
-                    tokens.append(encoded_token)
-                else:
-                    tokens.append(candidate_token)
+                        encoded_token = KpHdbscan.encode_token(candidate_token, encoding_method)
+
+                        tokens.append(encoded_token)
+                    else:
+                        tokens.append(candidate_token)
+        elif tokenizing_method == "fixed_length":
+
+            if encoded:
+                tokens = [KpHdbscan.encode_token(original_message[i: i + n_gram].ljust(n_gram)) for i in
+                          range(0, len(original_message), n_gram)]
+            else:
+                tokens = [original_message[i: i + n_gram].ljust(n_gram) for i in
+                          range(0, len(original_message), n_gram)]
+
+
+
 
         return tokens
 
@@ -184,13 +199,11 @@ class KpHdbscan:
         """
         # Initialize the decoded string to empty variable.
         decoded_token = ""
-        #if decoding_method == 'default':
+        # if decoding_method == 'default':
         if True:
             decoded_token = str(chr(token))
 
         return decoded_token
-
-
 
     @staticmethod
     def initialize_hdbscan(hdb_scan_min_cluster_size, hdb_scan_min_samples, function_timer=False):

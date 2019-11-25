@@ -124,6 +124,7 @@ class KpHdbscan:
         :param original_message:
         :param encoded:
         :param encoding_method:
+        :param tokenizing_method:
         :return:
         """
 
@@ -158,6 +159,13 @@ class KpHdbscan:
             else:
                 tokens = [original_message[i: i + n_gram].ljust(n_gram) for i in
                           range(0, len(original_message), n_gram)]
+
+        elif tokenizing_method == 'word_boundaries':
+
+            # Figure out how to tokenize log entries by word boundaries. We probably have to pad the words
+            # to the biggest length word so that we can use the clustering algorithm.
+
+            pass
 
 
 

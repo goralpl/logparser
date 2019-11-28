@@ -253,11 +253,13 @@ for hdbscan_parameter in hdbscan_parameters:
 
     tokenizing_method = hdbscan_parameter['tokenizing_method']
 
+    log_file_type = benchmark_settings['Linux']['log_file']
+
     # Function Timer
     ft = True
 
     # Instantiate KpHdbscan
-    k = KpHdbscan("test", "test2", os.path.join('../logs/', benchmark_settings['Linux']['log_file']), function_timer=ft)
+    k = KpHdbscan("test", "test2", os.path.join('../logs/', log_file_type), function_timer=ft)
 
     # Load the raw logs
     logs = k.load_logs(function_timer=ft)
@@ -373,8 +375,9 @@ for hdbscan_parameter in hdbscan_parameters:
             "labels_probabilities_vectors['decoded_vector'] Computed \t\t\t\t %s seconds ---" % (
                     time.time() - start_time))
 
-    labels_probabilities_vectors.to_csv("labels_probabilities_vectors_{}.csv".format(hdbscan_parameter['experiment']),
-                                        index=False)
+    labels_probabilities_vectors.to_csv(
+        "{}labels_probabilities_vectors_{}.csv".format(log_file_type.replace("/", "_").replace(".", "_"),hdbscan_parameter['experiment']),
+        index=False)
 
     relevant_tokens = labels_probabilities_vectors['decoded_vector'].tolist()
 

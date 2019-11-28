@@ -81,9 +81,6 @@ benchmark_settings = {
     }
 }
 
-
-
-
 hdbscan_parameters = [
     {
         "experiment": 1,
@@ -418,10 +415,7 @@ hdbscan_parameters = [
 
 ]
 
-
-
-for key,val in benchmark_settings.items():
-
+for key, val in benchmark_settings.items():
 
     for hdbscan_parameter in hdbscan_parameters:
 
@@ -510,7 +504,8 @@ for key,val in benchmark_settings.items():
             col_indexes_vector_columns_names].var().sum(axis=1)
 
         # Create a new column for the similarity measure
-        labels_probabilities_vectors['cluster_similarity_sum_of_variances'] = labels_probabilities_vectors['cluster'].map(
+        labels_probabilities_vectors['cluster_similarity_sum_of_variances'] = labels_probabilities_vectors[
+            'cluster'].map(
             cluster_similarity_sum_of_variances.to_dict())
 
         if ft:
@@ -525,7 +520,8 @@ for key,val in benchmark_settings.items():
             col_indexes_vector_columns_names].var().mean(axis=1)
 
         # Create a new column for the similarity measure
-        labels_probabilities_vectors['cluster_similarity_mean_of_variances'] = labels_probabilities_vectors['cluster'].map(
+        labels_probabilities_vectors['cluster_similarity_mean_of_variances'] = labels_probabilities_vectors[
+            'cluster'].map(
             cluster_similarity_mean_of_variances.to_dict())
 
         if ft:
@@ -556,15 +552,21 @@ for key,val in benchmark_settings.items():
             axis=1).to_dict()
 
         # Create a new column for the decoded tokens
-        labels_probabilities_vectors['decoded_vector'] = labels_probabilities_vectors.index.to_series().map(decoded_tokens)
+        labels_probabilities_vectors['decoded_vector'] = labels_probabilities_vectors.index.to_series().map(
+            decoded_tokens)
 
         if ft:
             print(
                 "labels_probabilities_vectors['decoded_vector'] Computed \t\t\t\t %s seconds ---" % (
                         time.time() - start_time))
 
+        csv_filename = "{}labels_probabilities_vectors_{}.csv".format(log_file_type.replace("/", "_").replace(".", "_"),
+                                                                      hdbscan_parameter['experiment'])
+
+        print("Writing to: {}".format(csv_filename))
+
         labels_probabilities_vectors.to_csv(
-            "{}labels_probabilities_vectors_{}.csv".format(log_file_type.replace("/", "_").replace(".", "_"),hdbscan_parameter['experiment']),
+            csv_filename,
             index=False)
 
         relevant_tokens = labels_probabilities_vectors['decoded_vector'].tolist()

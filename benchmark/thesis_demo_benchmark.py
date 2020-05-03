@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+
+import sys
 from logparser.kp_hdbscan.thesis import KpHdbscan
 from logparser.kp_hdbscan.thesis import KpPandasDataFrameHelper
 import sys
@@ -15,6 +18,99 @@ import pickle
 import re
 import csv
 from logparser import Drain, evaluator
+
+sys.path.append('../')
+from logparser import Drain, evaluator
+import os
+import pandas as pd
+import csv
+
+input_dir = '../logs/'  # The input directory of log file
+output_dir = 'thesis_result/'  # The output directory of parsing results
+
+benchmark_settings = {
+    'HDFS': {
+        'log_file': 'HDFS/HDFS_2k.log',
+        'regex': [r'blk_-?\d+', r'(\d+\.){3}\d+(:\d+)?']
+    }
+    #
+    # 'Hadoop': {
+    #     'log_file': 'Hadoop/Hadoop_2k.log',
+    #     'regex': [r'(\d+\.){3}\d+']
+    # },
+    #
+    # 'Spark': {
+    #     'log_file': 'Spark/Spark_2k.log',
+    #     'regex': [r'(\d+\.){3}\d+', r'\b[KGTM]?B\b', r'([\w-]+\.){2,}[\w-]+']
+    # },
+    #
+    # 'Zookeeper': {
+    #     'log_file': 'Zookeeper/Zookeeper_2k.log',
+    #     'regex': [r'(/|)(\d+\.){3}\d+(:\d+)?']
+    # },
+    #
+    # 'BGL': {
+    #     'log_file': 'BGL/BGL_2k.log',
+    #     'regex': [r'core\.\d+']
+    # },
+    #
+    # 'HPC': {
+    #     'log_file': 'HPC/HPC_2k.log',
+    #     'regex': [r'=\d+']
+    # },
+    #
+    # 'Thunderbird': {
+    #     'log_file': 'Thunderbird/Thunderbird_2k.log',
+    #     'regex': [r'(\d+\.){3}\d+']
+    # },
+    #
+    # 'Windows': {
+    #     'log_file': 'Windows/Windows_2k.log',
+    #     'regex': [r'0x.*?\s']
+    # },
+    #
+    # 'Linux': {
+    #     'log_file': 'Linux/Linux_2k.log',
+    #     'regex': [r'(\d+\.){3}\d+', r'\d{2}:\d{2}:\d{2}']
+    # },
+    #
+    # 'Andriod': {
+    #     'log_file': 'Andriod/Andriod_2k.log',
+    #     'regex': [r'(/[\w-]+)+', r'([\w-]+\.){2,}[\w-]+', r'\b(\-?\+?\d+)\b|\b0[Xx][a-fA-F\d]+\b|\b[a-fA-F\d]{4,}\b']
+    # },
+    #
+    # 'HealthApp': {
+    #     'log_file': 'HealthApp/HealthApp_2k.log',
+    #     'regex': []
+    # },
+    #
+    # 'Apache': {
+    #     'log_file': 'Apache/Apache_2k.log',
+    #     'regex': [r'(\d+\.){3}\d+']
+    # },
+    #
+    # 'Proxifier': {
+    #     'log_file': 'Proxifier/Proxifier_2k.log',
+    #     'regex': [r'<\d+\ssec', r'([\w-]+\.)+[\w-]+(:\d+)?', r'\d{2}:\d{2}(:\d{2})*', r'[KGTM]B']
+    # },
+    #
+    # 'OpenSSH': {
+    #     'log_file': 'OpenSSH/OpenSSH_2k.log',
+    #     'regex': [r'(\d+\.){3}\d+', r'([\w-]+\.){2,}[\w-]+']
+    # },
+    #
+    # 'OpenStack': {
+    #     'log_file': 'OpenStack/OpenStack_2k.log',
+    #     'regex': [r'((\d+\.){3}\d+,?)+', r'/.+?\s', r'\d+']
+    # },
+    #
+    # 'Mac': {
+    #     'log_file': 'Mac/Mac_2k.log',
+    #     'regex': [r'([\w-]+\.){2,}[\w-]+']
+    # },
+}
+
+bechmark_result = []
 
 
 def find_all_indexes(input_str, search_str):
@@ -43,104 +139,25 @@ def replace_none(token):
         return str(token)
 
 
-benchmark_settings = {
-    'HDFS': {
-        'log_file': 'HDFS/HDFS_2k.log'
-    },
-
-    'Hadoop': {
-        'log_file': 'Hadoop/Hadoop_2k.log'
-    },
-
-    'Spark': {
-        'log_file': 'Spark/Spark_2k.log'
-    },
-
-    'Zookeeper': {
-        'log_file': 'Zookeeper/Zookeeper_2k.log'
-    },
-
-    'BGL': {
-        'log_file': 'BGL/BGL_2k.log'
-    },
-
-    'HPC': {
-        'log_file': 'HPC/HPC_2k.log'
-    },
-
-    'Thunderbird': {
-        'log_file': 'Thunderbird/Thunderbird_2k.log'
-    },
-
-    'Windows': {
-        'log_file': 'Windows/Windows_2k.log'
-    },
-
-    'Linux': {
-        'log_file': 'Linux/Linux_2k.log'
-    },
-
-    'Andriod': {
-        'log_file': 'Andriod/Andriod_2k.log'
-    },
-
-    'HealthApp': {
-        'log_file': 'HealthApp/HealthApp_2k.log'
-    },
-
-    'Apache': {
-        'log_file': 'Apache/Apache_2k.log'
-    },
-
-    'Proxifier': {
-        'log_file': 'Proxifier/Proxifier_2k.log'
-    },
-
-    'OpenSSH': {
-        'log_file': 'OpenSSH/OpenSSH_2k.log'
-    },
-
-    'OpenStack': {
-        'log_file': 'OpenStack/OpenStack_2k.log'
-
-    },
-
-    'Mac': {
-        'log_file': 'Mac/Mac_2k.log'
-
-    }
-}
-
-benchmark_settings = {'Linux': {
-    'log_file': 'Apache/Apache_2k.log'
-}
-
-}
-
-input_dir = './logs/'  # The input directory of log file
-output_dir = './demo/'  # The output directory of parsing results
-
-indir = os.path.join(input_dir, os.path.dirname(benchmark_settings['Linux']['log_file']))
-log_file = os.path.basename(benchmark_settings['Linux']['log_file'])
-
 # n-gram 2 to 20 inclusive
-# n_gram_sizes = range(2, 21, 1)
-n_gram_sizes = [5]
+n_gram_sizes = range(10, 21, 1)
+#n_gram_sizes = [5]
 
 # Different methods of tokenizing the log messages.
-# tokenizing_methods = ['sliding_window', 'fixed_length']
-tokenizing_methods = ['fixed_length']
+tokenizing_methods = ['sliding_window']
+#tokenizing_methods = ['fixed_length']
 # Encoding Methods
 encoding_methods = ['default']
 
 # HDBSCAN min_cluster_size 2 to 10
-# hdb_scan_min_cluster_sizes = range(2, 11, 2)
-hdb_scan_min_cluster_sizes = [5]
+hdb_scan_min_cluster_sizes = range(2, 11, 2)
+#hdb_scan_min_cluster_sizes = [5]
 
 # HDBSCAN min_sample_size 2 to 31
-# hdb_scan_min_samples = range(2, 31, 2)
-hdb_scan_min_samples = [5]
+hdb_scan_min_samples = range(2, 31, 2)
+# hdb_scan_min_samples = [5]
 
+# Generate a list of experiment parameters
 experiments = []
 experiment = 0
 for log, log_path in benchmark_settings.items():
@@ -151,14 +168,6 @@ for log, log_path in benchmark_settings.items():
                     for hdb_scan_min_sample in hdb_scan_min_samples:
                         experiment = experiment + 1
 
-                        # print("{}:{} {}:{} {}:{} {}:{} {}:{} {}:{}".format(
-                        #     "experiment", experiment,
-                        #     log, log_path,
-                        #     "n_gram_size", n_gram_size,
-                        #     "tokenizing_method", tokenizing_method,
-                        #     "hdb_scan_min_cluster_size", hdb_scan_min_cluster_size,
-                        #     "hdb_scan_min_sample", hdb_scan_min_sample))
-
                         experiments.append({
                             "experiment": experiment,
                             "log": log,
@@ -167,11 +176,22 @@ for log, log_path in benchmark_settings.items():
                             "tokenizing_method": tokenizing_method,
                             "encoding_method": encoding_method,
                             "hdb_scan_min_cluster_size": hdb_scan_min_cluster_size,
-                            "hdb_scan_min_sample": hdb_scan_min_sample
+                            "hdb_scan_min_sample": hdb_scan_min_sample,
+                            "regex": log_path['regex']
                         })
+
 experiment = 0
 
 for ex in experiments:
+    print('\n=== Evaluation on %s ===' % ex['log'])
+
+    # Directory where the raw log files are contained in
+    indir = os.path.join(input_dir, os.path.dirname(ex['log_path']))
+
+    # Path to the actual log file
+    log_file = os.path.basename(ex['log_path'])
+
+    # START OF MY CODE
     experiment = experiment + 1
     print("Running experiment {experiment} of {experiments} {percent}%".format(experiment=experiment,
                                                                                experiments=len(experiments),
@@ -205,25 +225,17 @@ for ex in experiments:
     k = KpHdbscan("test", "test2", os.path.join('../logs/', log_file_type), function_timer=ft)
 
     # Load the raw logs
-    logs = k.load_logs(function_timer=ft)
-
-    print('debug')
+    logs = k.load_logs(regexes=ex['regex'], function_timer=ft)
 
     # Create a standard list of dictionaries for the log messages. See the function to figure out what "standard" is.
     logs = KpHdbscan.create_standard_log_dictionary(logs, n_gram_size, encoding_method=encoding_method,
                                                     function_timer=ft, tokenizing_method=tokenizing_method)
 
-    print('debug2')
-
     # Return a regular list of tokens, we need this for numpy.
     vec_logs = KpHdbscan.get_list_of_tokens(logs, function_timer=ft)
 
-    print('debug2')
-
     # Make a numpy array of the tokens
     numpy_vec_logs = np.array(vec_logs)
-
-    print('debug2')
 
     # Instantiate the clustering algorithm
     kp_hdbscan = KpHdbscan.initialize_hdbscan(hdb_scan_min_cluster_size=hdb_scan_min_cluster_size,
@@ -369,13 +381,9 @@ for ex in experiments:
     cluster_patterns = []
     # Iterate through each log entry
     for line in logs:
-        cluster_number = 1000
-
-        # print(line)
 
         lnn = line['log']
 
-        # print(str(line['line']) + "\t" + str(line['log']))
         # Create an empty list the size of the log entry
         tmp_lst = [None] * len(lnn)
 
@@ -397,26 +405,30 @@ for ex in experiments:
         if cluster_pattern not in cluster_patterns:
             cluster_patterns.append(cluster_pattern)
 
-        csv_line = {"line": line["original_log"].strip(), 'cluster_id': cluster_patterns.index(cluster_pattern),
-                    'pattern': str(cluster_pattern).strip()}
+        csv_line = {'LineId': line['line'] + 1, "original_log": line["original_log"].strip(),
+                    'EventId': cluster_patterns.index(cluster_pattern),
+                    'cluster_pattern': str(cluster_pattern).strip()}
 
         csv_lines.append(csv_line)
 
-    print(os.path.dirname(os.path.realpath(__file__)))
-
-    fh = os.path.join("{log_file}_structured.csv".format(log_file=log_file[:-4]))
+    fh = os.path.join(output_dir, "{log_file}_structured.csv".format(log_file=log_file[:-4]))
     print("Writing to:{}".format(fh))
     f = open(fh, "w")
-
     writer = csv.DictWriter(f, csv_lines[0].keys())
-
     writer.writeheader()
     writer.writerows(csv_lines)
     f.close()
 
-    f = open(os.path.join(input_dir,"Apache",os.path.dirname("Apache_2k.log_structured.csv")), "w")
-    print("Opened groundtruth")
+    # END OF MY CODE
+
     F1_measure, accuracy = evaluator.evaluate(
-        groundtruth=os.path.join(input_dir,"Apache","Apache_2k.log_structured.csv"),
-        parsedresult=os.path.join("{log_file}_structured.csv".format(log_file=log_file[:-4]))
+        groundtruth=os.path.join(indir, log_file[:-4] + '.log_structured.csv'),
+        parsedresult=os.path.join(output_dir, log_file[:-4] + '_structured.csv')
     )
+    bechmark_result.append([ex['log'], F1_measure, accuracy])
+
+print('\n=== Overall evaluation resuddlts ===')
+df_result = pd.DataFrame(bechmark_result, columns=['Dataset', 'F1_measure', 'Accuracy'])
+df_result.set_index('Dataset', inplace=True)
+print(df_result)
+df_result.T.to_csv('kp_thesis_result.csv')

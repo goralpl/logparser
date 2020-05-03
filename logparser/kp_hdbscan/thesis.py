@@ -4,15 +4,14 @@ import numpy as np
 import time
 import pickle
 import struct
+import re
 
 
 class KpHdbscan:
-    def __init__(self, indir, outdir, log_path, function_timer=False):
+    def __init__(self, log_path, function_timer=False):
         if function_timer:
             start_time = time.time()
 
-        self.indir = indir
-        self.outdir = outdir
         self.log_path = log_path
         self.log_list = None
         self.df = None
@@ -20,12 +19,16 @@ class KpHdbscan:
         if function_timer:
             print("Instantiate KpHdbscan \t\t\t\t %s seconds ---" % (time.time() - start_time))
 
-    def load_logs(self, function_timer=False):
+    def load_logs(self, regexes, strip_date=False, regex_mode=True, function_timer=False):
         """
         This function simply loads the log files form the text files. The result is a list
         of dictionaries with a key that identifies each log line.
         :return:
         """
+
+        strip_date = strip_date
+
+        regex_mode = regex_mode
 
         if function_timer:
             # Start Timer
@@ -33,12 +36,20 @@ class KpHdbscan:
 
         logs = []
         line_count = 0
+        tmp_original_log = ""
         with open(self.log_path, 'r', encoding='utf-8') as f:
             for num, line in enumerate(f):
-                logs.append({"line": num, "log": line[16:]})
+                tmp_original_log = line
+
+                if regex_mode:
+                    if strip_date:
+                        line = line[26:]
+                    for regex in regexes:
+                        line = re.sub(regex, "*", line)
+                    logs.append({"line": num, "log": line.strip(), "original_log": tmp_original_log})
+                else:
+                    logs.append({"line": num, "log": line, "original_log": tmp_original_log})
                 line_count = line_count + 1
-                # if line_count > 10:
-                #     break
 
         self.log_list = logs
 
@@ -75,8 +86,10 @@ class KpHdbscan:
 
         for log in logs:
             log['tokens'] = KpHdbscan.tokenize_logs(n_gram_size, log['log'], encoded=True,
-                                                    encoding_method=encoding_method, tokenizing_method=tokenizing_method)
-            log['tokens_decoded'] = KpHdbscan.tokenize_logs(n_gram_size, log['log'], encoded=False,tokenizing_method=tokenizing_method)
+                                                    encoding_method=encoding_method,
+                                                    tokenizing_method=tokenizing_method)
+            log['tokens_decoded'] = KpHdbscan.tokenize_logs(n_gram_size, log['log'], encoded=False,
+                                                            tokenizing_method=tokenizing_method)
             log['relevant_tokens'] = []
             log['relevant_tokens_padded'] = []
             log['log_as_lst'] = [None] * len(log['log'])
@@ -166,9 +179,6 @@ class KpHdbscan:
             # to the biggest length word so that we can use the clustering algorithm.
 
             pass
-
-
-
 
         return tokens
 

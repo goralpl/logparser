@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import sys
+sys.path.append('../')
 from logparser.kp_hdbscan.thesis import KpHdbscan
 from logparser.kp_hdbscan.thesis import KpPandasDataFrameHelper
 import sys

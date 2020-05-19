@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import sys
+
 sys.path.append('../')
 from logparser.kp_hdbscan.thesis import KpHdbscan
 from logparser.kp_hdbscan.thesis import KpPandasDataFrameHelper
@@ -27,6 +28,14 @@ import csv
 import requests
 import json
 import datetime
+from itertools import zip_longest
+import logging
+
+
+def grouper(iterable, n, fillvalue=None):
+    args = [iter(iterable)] * n
+    return zip_longest(*args, fillvalue=fillvalue)
+
 
 input_dir = '../logs/'  # The input directory of log file
 output_dir = 'thesis_result/'  # The output directory of parsing results
@@ -66,10 +75,16 @@ while True:
 
     domain = 'www.kpthesisexperiments.com'
 
+    # domain = 'host.docker.internal:8000'
+
     api_key = 'SKCeSpB1.0Xeu6zlzixpvIQ9kgqxQ7RhmkvVUaeBr'
+
+    # api_key = 'uO5ehOvH.W77UFS3TEgztGQ3V5D70SDtIiFKUEha0'
 
     # URL to get a random experiment
     get_url = 'https://{domain}/api/v1/experiments/get_random'.format(domain=domain)
+
+    # get_url = 'http://{domain}/api/v1/experiments/get_random'.format(domain=domain)
 
     # Make the API Call
     r = requests.get(get_url, headers={'Authorization': 'Api-Key {api_key}'.format(api_key=api_key)})
@@ -103,6 +118,7 @@ while True:
 
     # Set the experiment status to 'started'
     put_url = 'https://{domain}/api/v1/experiments/{experiment_id}'.format(domain=domain, experiment_id=ex['id'])
+    # put_url = 'http://{domain}/api/v1/experiments/{experiment_id}'.format(domain=domain, experiment_id=ex['id'])
 
     # Set the experiment status to 'started'
     r = requests.put(url=put_url,
@@ -134,7 +150,7 @@ while True:
     log_file_type = ex['log_file']
 
     # Function Timer
-    ft = False
+    ft = True
 
     # Instantiate KpHdbscan
     k = KpHdbscan(os.path.join('../logs/', log_file_type), function_timer=ft)
@@ -282,8 +298,44 @@ while True:
     # Write the final Data Frame To CSV
     labels_probabilities_vectors.to_csv(csv_filename, index=False)
 
-    # Possibly write labels_probabilities_vectors to the database
-    # Do it here
+    # Write the result to the database
+    tmp_columns_upload_db = ['cluster',
+                             'cluster_probability',
+                             'decoded_vector',
+                             'cluster_similarity_sum_of_variances',
+                             'cluster_similarity_mean_of_variances',
+                             'cluster_similarity_mean_of_std']
+
+    # Slice out the columns we want to upload.
+    tmp_labels_probabilities_vectors = labels_probabilities_vectors[tmp_columns_upload_db]
+
+    # Add the experiment id
+    tmp_labels_probabilities_vectors['experiment'] = ex['id']
+
+    # Get a list of dictionaries
+    tmp_labels_probabilities_vectors = tmp_labels_probabilities_vectors.to_dict(orient='records')
+
+    n = 1000
+
+    # using list comprehension
+    upload_chunks = [tmp_labels_probabilities_vectors[i * n:(i + 1) * n] for i in
+                     range((len(tmp_labels_probabilities_vectors) + n - 1) // n)]
+
+    post_url = 'https://{domain}/api/v1/experimentclusters/new'.format(domain=domain)
+
+    # post_url = 'http://{domain}/api/v1/experimentclusters/new'.format(domain=domain)
+
+    num_experimentclusters = len(upload_chunks)
+
+    for key, upload_chunk in enumerate(upload_chunks):
+        print("Request {} of {}".format(key + 1, num_experimentclusters))
+        post_data = upload_chunk
+        print(post_data)
+        r = requests.post(url=post_url,
+                          json=post_data,
+                          headers={'Authorization': 'Api-Key {api_key} '.format(api_key=api_key)})
+        print(r.request)
+        print(r.text)
 
     # Here we will extract the relevant clusters by specifying the measure we will use and a cutoff value
     similarity_score_metric = ex['similarity_score_metric']
@@ -339,6 +391,39 @@ while True:
     writer.writeheader()
     writer.writerows(csv_lines)
     f.close()
+
+    upload_lines = []
+    for c in csv_lines:
+        tmp = {
+            "experiment": ex['id'],
+            "line_id": c['LineId'],
+            "original_log": c['original_log'],
+            "event_id": c['EventId'],
+            "cluster_pattern": c['cluster_pattern']
+        }
+        upload_lines.append(tmp)
+
+    # Upload CSV
+    n = 200
+
+    # using list comprehension
+    upload_chunks = [upload_lines[i * n:(i + 1) * n] for i in range((len(upload_lines) + n - 1) // n)]
+
+    post_url = 'https://{domain}/api/v1/experimentstructured/new'.format(domain=domain)
+
+    # post_url = 'http://{domain}/api/v1/experimentstructured/new'.format(domain=domain)
+
+    num_experimentclusters = len(upload_chunks)
+
+    for key, upload_chunk in enumerate(upload_chunks):
+        print("Request {} of {}".format(key + 1, num_experimentclusters))
+        post_data = upload_chunk
+        print(post_data)
+        r = requests.post(url=post_url,
+                          json=post_data,
+                          headers={'Authorization': 'Api-Key {api_key} '.format(api_key=api_key)})
+        print(r.request)
+        print(r.text)
 
     # END OF MY CODE
 

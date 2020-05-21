@@ -418,12 +418,12 @@ while True:
     for key, upload_chunk in enumerate(upload_chunks):
         print("Request {} of {}".format(key + 1, num_experimentclusters))
         post_data = upload_chunk
-        print(post_data)
+        #print(post_data)
         r = requests.post(url=post_url,
                           json=post_data,
                           headers={'Authorization': 'Api-Key {api_key} '.format(api_key=api_key)})
-        print(r.request)
-        print(r.text)
+        #print(r.request)
+        print("HTTP Response Code {}".format(r.status_code))
 
     # END OF MY CODE
 

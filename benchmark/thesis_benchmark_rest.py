@@ -460,6 +460,9 @@ while True:
     # Slice out the columns we want to upload.
     tmp_labels_probabilities_vectors = labels_probabilities_vectors[tmp_columns_upload_db]
 
+    # Copy the Data Frame to avoid warnings
+    tmp_labels_probabilities_vectors = tmp_labels_probabilities_vectors.copy()
+
     # Add the experiment id
     tmp_labels_probabilities_vectors['experiment'] = ex['id']
 

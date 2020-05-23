@@ -30,6 +30,7 @@ import json
 import datetime
 from itertools import zip_longest
 import logging
+from retrying import retry
 
 
 def grouper(iterable, n, fillvalue=None):
@@ -71,26 +72,181 @@ def without_keys(d, keys):
     return {x: d[x] for x in d if x not in keys}
 
 
-while True:
-
-    domain = 'www.kpthesisexperiments.com'
-
-    # domain = 'host.docker.internal:8000'
-
-    api_key = 'SKCeSpB1.0Xeu6zlzixpvIQ9kgqxQ7RhmkvVUaeBr'
-
-    # api_key = 'uO5ehOvH.W77UFS3TEgztGQ3V5D70SDtIiFKUEha0'
+@retry(stop_max_attempt_number=7, wait_random_min=1000, wait_random_max=15000)
+def get_random_experiment(api_key, domain):
+    """
+    This function will reach out to the API server and grab a random experiment for the machine to work on.
+    :param api_key:
+    :param domain:
+    :return:
+    """
 
     # URL to get a random experiment
     get_url = 'https://{domain}/api/v1/experiments/get_random'.format(domain=domain)
 
-    # get_url = 'http://{domain}/api/v1/experiments/get_random'.format(domain=domain)
+    # Make the API Call
+    r = requests.get(get_url, headers={'Authorization': 'Api-Key {api_key}'.format(api_key=api_key)})
+
+    # Check to see if the response is a 200 OK. If not then retry or error out
+    if r.status_code != 200:
+        raise Exception("Unable to obtain an experiment!")
+    else:
+        resp = r.json()
+        print("Obtained an experiment. ID {}".format(resp['id']))
+        return resp
+
+
+@retry(stop_max_attempt_number=7, wait_random_min=1000, wait_random_max=15000)
+def acknowledge_experiment(api_key, domain, experiment):
+    """
+    This function will reach out to the API server to confirm that the experiment has been received.
+    :param api_key:
+    :param domain:
+    :param id:
+    :return:
+    """
+
+    experiment['experiment_status'] = "started"
+
+    # Exclude some keys for being updated
+    put_ex = without_keys(experiment, {'id', 'regex'})
+
+    # Set the experiment status to 'started'
+    put_url_ack_exp = 'https://{domain}/api/v1/experiments/{experiment_id}'.format(domain=domain,
+                                                                                   experiment_id=experiment['id'])
+
+    # Set the experiment status to 'started'
+    r = requests.put(url=put_url_ack_exp,
+                     data=put_ex,
+                     headers={'Authorization': 'Api-Key {api_key}'.format(api_key=api_key)})
+
+    # Check to see if the response is a 200 OK. If not then retry or error out
+    if r.status_code not in [200, 201]:
+        print(r.content)
+        print(r.status_code)
+        raise Exception("Unable to acknowledge experiment! Response Code {}".format(r.status_code))
+    else:
+        print("Acknowledged experiment. ID {}".format(experiment['id']))
+        return r.json()
+
+
+@retry(stop_max_attempt_number=7, wait_random_min=1000, wait_random_max=15000)
+def upload_experiment_cluster(api_key, domain, upload_chunk):
+    """
+
+    :param api_key:
+    :param domain:
+    :param upload_chunk:
+    :return:
+    """
+    post_url_new_exp_clstr = 'https://{domain}/api/v1/experimentclusters/new'.format(domain=domain)
+
+    print("Attempting to upload experiment cluster")
+
+    r = requests.post(url=post_url_new_exp_clstr,
+                      json=upload_chunk,
+                      headers={'Authorization': 'Api-Key {api_key} '.format(api_key=api_key)})
+
+    # Check to see if the response is a 200 OK. If not then retry or error out
+    if r.status_code not in [200, 201]:
+        print(r.status_code)
+        raise Exception("Unable to upload cluster experiment")
+    else:
+        print("Uploaded experiment cluster for experiment id {}".format(upload_chunk[0]['experiment']))
+        return r.json()
+
+
+@retry(stop_max_attempt_number=7, wait_random_min=1000, wait_random_max=15000)
+def upload_experiment_structured(api_key, domain, upload_chunk):
+    """
+
+    :param api_key:
+    :param domain:
+    :param upload_chunk:
+    :return:
+    """
+
+    post_url = 'https://{domain}/api/v1/experimentstructured/new'.format(domain=domain)
+
+    print("Attempting to upload experiment structured")
+
+    r = requests.post(url=post_url,
+                      json=upload_chunk,
+                      headers={'Authorization': 'Api-Key {api_key} '.format(api_key=api_key)})
+
+    # Check to see if the response is a 200 OK. If not then retry or error out
+    if r.status_code not in [200, 201]:
+        raise Exception("Unable to upload experiment structured")
+    else:
+        print("Uploaded experiment structured for experiment id {}".format(upload_chunk[0]['experiment']))
+        return r.json()
+
+
+@retry(stop_max_attempt_number=7, wait_random_min=1000, wait_random_max=15000)
+def finish_experiment(api_key, domain, experiment):
+    """
+
+    :param api_key:
+    :param domain:
+    :param experiment:
+    :return:
+    """
+
+    # Construct the PUT url
+    put_url = 'https://{domain}/api/v1/experiments/{experiment_id}'.format(domain=domain,
+                                                                           experiment_id=experiment['id'])
+
+    # Exclude some keys for being updated
+    put_ex = without_keys(experiment, {'id', 'regex'})
+
+    print("Attempting to finish experiment")
+
+    r = requests.put(url=put_url, data=put_ex, headers={'Authorization': 'Api-Key {api_key}'.format(api_key=api_key)})
+
+    # Check to see if the response is a 200 OK. If not then retry or error out
+    if r.status_code not in [200, 201]:
+        raise Exception("Unable to finish experiment")
+    else:
+        print("Finished Experiment")
+        return r.json()
+
+
+@retry(stop_max_attempt_number=7, wait_random_min=1000, wait_random_max=15000)
+def get_experiment_cluster_count(api_key, domain, experiment):
+    """
+
+    :param api_key:
+    :param domain:
+    :param experiment:
+    :return:
+    """
+
+    # URL to get a random experiment
+    get_url = 'https://{domain}/api/v1/experimentclusters/count/?experiment={id}'.format(domain=domain,
+                                                                                         id=experiment['id'])
 
     # Make the API Call
     r = requests.get(get_url, headers={'Authorization': 'Api-Key {api_key}'.format(api_key=api_key)})
 
+    # Check to see if the response is a 200 OK. If not then retry or error out
+    if r.status_code != 200:
+        raise Exception("Unable to obtain experiment clusters count!")
+    else:
+        resp = r.json()
+        print("Obtained an experiment. ID {exid} cluster count".format(exid=experiment['id']))
+        return resp
+
+
+while True:
+
+    # Domain for the REST API server
+    domain = 'www.kpthesisexperiments.com'
+
+    # API Key for the server
+    api_key = 'SKCeSpB1.0Xeu6zlzixpvIQ9kgqxQ7RhmkvVUaeBr'
+
     # Get the experiment as a Dictionary
-    ex_tmp = r.json()
+    ex_tmp = get_random_experiment(api_key, domain)
 
     # Assign the values to the local experiment dictionary
     ex = {
@@ -116,14 +272,9 @@ while True:
         "f_measure": ex_tmp['f_measure']
     }
 
-    # Set the experiment status to 'started'
-    put_url = 'https://{domain}/api/v1/experiments/{experiment_id}'.format(domain=domain, experiment_id=ex['id'])
-    # put_url = 'http://{domain}/api/v1/experiments/{experiment_id}'.format(domain=domain, experiment_id=ex['id'])
+    acknowledge_experiment(api_key, domain, ex)
 
-    # Set the experiment status to 'started'
-    r = requests.put(url=put_url,
-                     data={'experiment_status': 'started'},
-                     headers={'Authorization': 'Api-Key {api_key}'.format(api_key=api_key)})
+    # Check to see if the response is a 200 OK. If not then retry or error out
 
     # Directory where the raw log files are contained in
     indir = os.path.join(input_dir, os.path.dirname(ex['log_file']))
@@ -150,7 +301,7 @@ while True:
     log_file_type = ex['log_file']
 
     # Function Timer
-    ft = True
+    ft = False
 
     # Instantiate KpHdbscan
     k = KpHdbscan(os.path.join('../logs/', log_file_type), function_timer=ft)
@@ -321,21 +472,11 @@ while True:
     upload_chunks = [tmp_labels_probabilities_vectors[i * n:(i + 1) * n] for i in
                      range((len(tmp_labels_probabilities_vectors) + n - 1) // n)]
 
-    post_url = 'https://{domain}/api/v1/experimentclusters/new'.format(domain=domain)
-
-    # post_url = 'http://{domain}/api/v1/experimentclusters/new'.format(domain=domain)
-
     num_experimentclusters = len(upload_chunks)
 
     for key, upload_chunk in enumerate(upload_chunks):
         print("Request {} of {}".format(key + 1, num_experimentclusters))
-        post_data = upload_chunk
-        #print(post_data)
-        r = requests.post(url=post_url,
-                          json=post_data,
-                          headers={'Authorization': 'Api-Key {api_key} '.format(api_key=api_key)})
-        #print(r.request)
-        print("HTTP Response Code {}".format(r.status_code))
+        upload_experiment_cluster(api_key, domain, upload_chunk)
 
     # Here we will extract the relevant clusters by specifying the measure we will use and a cutoff value
     similarity_score_metric = ex['similarity_score_metric']
@@ -404,28 +545,15 @@ while True:
         upload_lines.append(tmp)
 
     # Upload CSV
-    n = 200
+    n = 1000
 
     # using list comprehension
     upload_chunks = [upload_lines[i * n:(i + 1) * n] for i in range((len(upload_lines) + n - 1) // n)]
-
-    post_url = 'https://{domain}/api/v1/experimentstructured/new'.format(domain=domain)
-
-    # post_url = 'http://{domain}/api/v1/experimentstructured/new'.format(domain=domain)
 
     num_experimentclusters = len(upload_chunks)
 
     for key, upload_chunk in enumerate(upload_chunks):
         print("Request {} of {}".format(key + 1, num_experimentclusters))
-        post_data = upload_chunk
-        #print(post_data)
-        r = requests.post(url=post_url,
-                          json=post_data,
-                          headers={'Authorization': 'Api-Key {api_key} '.format(api_key=api_key)})
-        #print(r.request)
-        print("HTTP Response Code {}".format(r.status_code))
-
-    # END OF MY CODE
 
     precision, recall, f_measure, accuracy = evaluator.evaluate(
         groundtruth=os.path.join(indir, log_file[:-4] + '.log_structured.csv'),
@@ -449,13 +577,14 @@ while True:
 
     ex['end_time'] = datetime.datetime.utcnow()
 
-    # Construct the PUT url
-    put_url = 'https://{domain}/api/v1/experiments/{experiment_id}'.format(domain=domain, experiment_id=ex['id'])
+    expected_cluster_count = len(tmp_labels_probabilities_vectors)
+    actual_cluster_count = get_experiment_cluster_count(api_key, domain, ex)['experiment_cluster_count']
 
-    # Exclude some keys for being updated
-    put_ex = without_keys(ex, {'id', 'regex'})
+    if expected_cluster_count != actual_cluster_count:
+        raise Exception("Something went wrong uploading experiment clusters! Expected Count {} Actual {} ".format(
+            expected_cluster_count, actual_cluster_count))
+    else:
+        print("Expected cluster count matches database!")
 
     # Update the database
-    r = requests.put(url=put_url, data=put_ex, headers={'Authorization': 'Api-Key {api_key}'.format(api_key=api_key)})
-
-    print("Experiment Update Response Code {}".format(r.status_code))
+    finish_experiment(api_key, domain, experiment=ex)

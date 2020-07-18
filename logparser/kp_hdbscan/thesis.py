@@ -5,6 +5,7 @@ import time
 import pickle
 import struct
 import re
+from .char_embeddings import CHAR_MAPPINGS
 
 
 class KpHdbscan:
@@ -167,7 +168,8 @@ class KpHdbscan:
         elif tokenizing_method == "fixed_length":
 
             if encoded:
-                tokens = [KpHdbscan.encode_token(original_message[i: i + n_gram].ljust(n_gram)) for i in
+                tokens = [KpHdbscan.encode_token(original_message[i: i + n_gram].ljust(n_gram),
+                                                 encoding_method=encoding_method) for i in
                           range(0, len(original_message), n_gram)]
             else:
                 tokens = [original_message[i: i + n_gram].ljust(n_gram) for i in
@@ -202,11 +204,16 @@ class KpHdbscan:
             # Depending on the encoding scheme, use a different encoding method.
             if encoding_method == 'default':
                 encoded_string.append(ord(char))
+            if encoding_method == 'minimaxir_char_embedding':
+                try:
+                    encoded_string.append(CHAR_MAPPINGS[char])
+                except KeyError:
+                    print("No Mapping for character : {}".format(char))
 
         return encoded_string
 
     @staticmethod
-    def decode_token(token):
+    def decode_token_minimaxir_char_embedding(token, encoding_method='minimaxir_char_embedding'):
         """
         This function shall take in a token, and then decode that token depending on the decoding method specified.
 
@@ -217,14 +224,36 @@ class KpHdbscan:
         """
         # Initialize the decoded string to empty variable.
         decoded_token = ""
-        # if decoding_method == 'default':
-        if True:
+        if encoding_method == 'minimaxir_char_embedding':
+            try:
+                for key, value in CHAR_MAPPINGS.items():
+                    if value == token:
+                        decoded_token = str(key)
+            except KeyError:
+                print("No Mapping for token : {}".format(token))
+
+        return decoded_token
+
+    @staticmethod
+    def decode_token_default(token, encoding_method="default"):
+        """
+        This function shall take in a token, and then decode that token depending on the decoding method specified.
+
+        The function return a string
+        :param token:
+        :param decoding_method:
+        :return:
+        """
+        # Initialize the decoded string to empty variable.
+        decoded_token = ""
+        if encoding_method == 'default':
             decoded_token = str(chr(token))
 
         return decoded_token
 
     @staticmethod
-    def initialize_hdbscan(hdb_scan_min_cluster_size, hdb_scan_min_samples, function_timer=False):
+    def initialize_hdbscan(hdb_scan_min_cluster_size, hdb_scan_min_samples, hdb_scan_distance_metric,
+                           function_timer=False):
         """
 
         :param hdb_scan_min_cluster_size:
@@ -236,7 +265,8 @@ class KpHdbscan:
             # Start Timer
             start_time = time.time()
 
-        hdbs = hdbscan.HDBSCAN(min_cluster_size=hdb_scan_min_cluster_size, min_samples=hdb_scan_min_samples)
+        hdbs = hdbscan.HDBSCAN(min_cluster_size=hdb_scan_min_cluster_size, min_samples=hdb_scan_min_samples,
+                               metric=hdb_scan_distance_metric)
 
         if function_timer:
             print("Instantiated hdbscan hdb_scan_min_cluster_size {} hdb_scan_min_samples {} took {} seconds".format(
@@ -326,7 +356,8 @@ class KpPandasDataFrameHelper:
         pass
 
     @staticmethod
-    def create_column_headers(user_defined_columns, n_gram_size, prepend_str='c{}', function_timer=False):
+    def create_column_headers(user_defined_columns, n_gram_size, prepend_str='c{}', encoding_method="default",
+                              function_timer=False):
         """
 
         :param user_defined_columns:
@@ -344,6 +375,19 @@ class KpPandasDataFrameHelper:
         for n_gram in range(1, n_gram_size + 1, 1):
             column_name = prepend_str.format(n_gram)
             labels_probabilities_vectors_columns.append(column_name)
+
+        # If we are using a character embedding, then we will need more columns. For character embeddings
+        # we will have ce1, ce2, ce3 etc.
+        if encoding_method == 'minimaxir_char_embedding':
+            # length of each character embedding
+            char_embedding_length = 300
+
+            # Each character embedding will be broken into it's own row
+            char_embedding_length = n_gram_size * char_embedding_length
+
+            for char_emb in range(1, char_embedding_length + 1, 1):
+                column_name = 'ce_{}'.format(char_emb)
+                labels_probabilities_vectors_columns.append(column_name)
 
         if function_timer:
             # End Timer

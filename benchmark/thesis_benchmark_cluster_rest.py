@@ -19,6 +19,8 @@ import time
 import pickle
 import re
 import csv
+import json
+import gzip
 
 sys.path.append('../')
 from logparser import Drain, evaluator
@@ -31,6 +33,9 @@ import datetime
 from itertools import zip_longest
 import logging
 from retrying import retry
+import shutil
+from sklearn.metrics import silhouette_samples, silhouette_score
+from sklearn.metrics import davies_bouldin_score
 
 
 def grouper(iterable, n, fillvalue=None):
@@ -82,7 +87,7 @@ def get_random_experiment(api_key, domain):
     """
 
     # URL to get a random experiment
-    get_url = 'https://{domain}/api/v1/experiments/get_random'.format(domain=domain)
+    get_url = '{domain}/api/v1/experimentclusterparameters/get_random'.format(domain=domain)
 
     # Make the API Call
     r = requests.get(get_url, headers={'Authorization': 'Api-Key {api_key}'.format(api_key=api_key)})
@@ -97,25 +102,25 @@ def get_random_experiment(api_key, domain):
 
 
 @retry(stop_max_attempt_number=7, wait_random_min=1000, wait_random_max=15000)
-def acknowledge_experiment(api_key, domain, experiment):
+def acknowledge_experiment(api_key, domain, experiment_cluster_parameter):
     """
-    This function will reach out to the API server to confirm that the experiment has been received.
+    This function will reach out to the API server to confirm that the experiment_cluster_parameter has been received.
     :param api_key:
     :param domain:
     :param id:
     :return:
     """
 
-    experiment['experiment_status'] = "started"
+    experiment_cluster_parameter['experiment_cluster_status'] = "started"
 
     # Exclude some keys for being updated
-    put_ex = without_keys(experiment, {'id', 'regex'})
+    put_ex = without_keys(experiment_cluster_parameter, {'id', 'regex'})
 
-    # Set the experiment status to 'started'
-    put_url_ack_exp = 'https://{domain}/api/v1/experiments/{experiment_id}'.format(domain=domain,
-                                                                                   experiment_id=experiment['id'])
+    # Set the experiment_cluster_parameter status to 'started'
+    put_url_ack_exp = '{domain}/api/v1/experimentclusterparameters/{id}'.format(domain=domain,
+                                                                                id=experiment_cluster_parameter['id'])
 
-    # Set the experiment status to 'started'
+    # Set the experiment_cluster_parameter status to 'started'
     r = requests.put(url=put_url_ack_exp,
                      data=put_ex,
                      headers={'Authorization': 'Api-Key {api_key}'.format(api_key=api_key)})
@@ -126,7 +131,41 @@ def acknowledge_experiment(api_key, domain, experiment):
         print(r.status_code)
         raise Exception("Unable to acknowledge experiment! Response Code {}".format(r.status_code))
     else:
-        print("Acknowledged experiment. ID {}".format(experiment['id']))
+        print("Acknowledged experiment. ID {}".format(experiment_cluster_parameter['id']))
+        return r.json()
+
+
+@retry(stop_max_attempt_number=7, wait_random_min=1000, wait_random_max=15000)
+def update_experiment(api_key, domain, experiment_cluster_parameter):
+    """
+    This function will reach out to the API server to confirm that the experiment_cluster_parameter has been received.
+    :param api_key:
+    :param domain:
+    :param id:
+    :return:
+    """
+
+    experiment_cluster_parameter['experiment_cluster_status'] = "started"
+
+    # Exclude some keys for being updated
+    put_ex = without_keys(experiment_cluster_parameter, {'id', 'regex'})
+
+    # Set the experiment_cluster_parameter status to 'started'
+    put_url_ack_exp = '{domain}/api/v1/experimentclusterparameters/{id}'.format(domain=domain,
+                                                                                id=experiment_cluster_parameter['id'])
+
+    # Set the experiment_cluster_parameter status to 'started'
+    r = requests.put(url=put_url_ack_exp,
+                     data=put_ex,
+                     headers={'Authorization': 'Api-Key {api_key}'.format(api_key=api_key)})
+
+    # Check to see if the response is a 200 OK. If not then retry or error out
+    if r.status_code not in [200, 201]:
+        print(r.content)
+        print(r.status_code)
+        raise Exception("Unable to acknowledge experiment! Response Code {}".format(r.status_code))
+    else:
+        print("Updated experiment. ID {}".format(experiment_cluster_parameter['id']))
         return r.json()
 
 
@@ -139,7 +178,7 @@ def upload_experiment_cluster(api_key, domain, upload_chunk):
     :param upload_chunk:
     :return:
     """
-    post_url_new_exp_clstr = 'https://{domain}/api/v1/experimentclusters/new'.format(domain=domain)
+    post_url_new_exp_clstr = '{domain}/api/v1/experimentclusters/new'.format(domain=domain)
 
     print("Attempting to upload experiment cluster")
 
@@ -157,6 +196,34 @@ def upload_experiment_cluster(api_key, domain, upload_chunk):
 
 
 @retry(stop_max_attempt_number=7, wait_random_min=1000, wait_random_max=15000)
+def upload_experiment_cluster_file(api_key, domain, upload_file, data):
+    """
+
+    :param api_key:
+    :param domain:
+    :param upload_chunk:
+    :return:
+    """
+    post_url_new_exp_clstr = '{domain}/api/v1/experimentclusters/upload'.format(domain=domain)
+
+    print("Attempting to upload experiment cluster")
+
+    r = requests.post(url=post_url_new_exp_clstr,
+                      files=upload_file,
+                      data=data,
+                      headers={'Authorization': 'Api-Key {api_key} '.format(api_key=api_key)})
+
+    # Check to see if the response is a 200 OK. If not then retry or error out
+    if r.status_code not in [200, 201]:
+        print(r.status_code)
+        raise Exception("Unable to upload cluster experiment")
+    else:
+
+        print("Uploaded experiment cluster for experiment id")
+        return r.json()
+
+
+@retry(stop_max_attempt_number=7, wait_random_min=1000, wait_random_max=15000)
 def upload_experiment_structured(api_key, domain, upload_chunk):
     """
 
@@ -166,7 +233,7 @@ def upload_experiment_structured(api_key, domain, upload_chunk):
     :return:
     """
 
-    post_url = 'https://{domain}/api/v1/experimentstructured/new'.format(domain=domain)
+    post_url = '{domain}/api/v1/experimentstructured/new'.format(domain=domain)
 
     print("Attempting to upload experiment structured")
 
@@ -193,8 +260,8 @@ def finish_experiment(api_key, domain, experiment):
     """
 
     # Construct the PUT url
-    put_url = 'https://{domain}/api/v1/experiments/{experiment_id}'.format(domain=domain,
-                                                                           experiment_id=experiment['id'])
+    put_url = '{domain}/api/v1/experimentclusterparameters/{experiment_id}'.format(domain=domain,
+                                                                                   experiment_id=experiment['id'])
 
     # Exclude some keys for being updated
     put_ex = without_keys(experiment, {'id', 'regex'})
@@ -222,8 +289,8 @@ def get_experiment_cluster_count(api_key, domain, experiment):
     """
 
     # URL to get a random experiment
-    get_url = 'https://{domain}/api/v1/experimentclusters/count/?experiment={id}'.format(domain=domain,
-                                                                                         id=experiment['id'])
+    get_url = '{domain}/api/v1/experimentclusters/count/?experiment={id}'.format(domain=domain,
+                                                                                 id=experiment['id'])
 
     # Make the API Call
     r = requests.get(get_url, headers={'Authorization': 'Api-Key {api_key}'.format(api_key=api_key)})
@@ -239,11 +306,20 @@ def get_experiment_cluster_count(api_key, domain, experiment):
 
 while True:
 
-    # Domain for the REST API server
-    domain = 'www.kpthesisexperiments.com'
+    # Set this to False for production
+    local_conn = False
 
-    # API Key for the server
-    api_key = 'SKCeSpB1.0Xeu6zlzixpvIQ9kgqxQ7RhmkvVUaeBr'
+    if local_conn:
+        domain = 'http://host.docker.internal:8000'
+
+        api_key = 'V8D90F1k.LlUUj8j0KEsCqpuPjWGuVGj4yAKIbAsm'
+    else:
+
+        # Domain for the REST API server
+        domain = 'https://www.kpthesisexperiments.com'
+
+        # API Key for the server
+        api_key = 'ZCA4Wluw.wlBavJG6xD18LzdhYxmPfMvUzL7Apwsr'
 
     # Get the experiment as a Dictionary
     ex_tmp = get_random_experiment(api_key, domain)
@@ -253,50 +329,27 @@ while True:
         "id": ex_tmp['id'],
         "log_type": ex_tmp['log_type'],
         "log_file": ex_tmp['log_file'],
+        "log_file_lines": ex_tmp['log_file_lines'],
         "n_gram_size": ex_tmp['n_gram_size'],
         "tokenizing_method": ex_tmp['tokenizing_method'],
         "encoding_method": ex_tmp['encoding_method'],
         "hdb_scan_min_cluster_size": ex_tmp['hdb_scan_min_cluster_size'],
         "hdb_scan_min_sample": ex_tmp['hdb_scan_min_sample'],
+        "hdb_scan_distance_metric": ex_tmp['hdb_scan_distance_metric'],
         "regex_version": ex_tmp['regex_version'],
         "regex": ex_tmp['regex'].split(ex_tmp['regex_separator']),
         'regex_separator': ex_tmp['regex_separator'],
-        "experiment_status": ex_tmp['experiment_status'],
+        "experiment_cluster_status": ex_tmp['experiment_cluster_status'],
+        "clustering_duration_seconds": ex_tmp['clustering_duration_seconds'],
+        "cluster_count": ex_tmp['cluster_count'],
+        "log_chunk_count": ex_tmp['log_chunk_count'],
         "start_time": ex_tmp['start_time'],
         "end_time": ex_tmp['end_time'],
-        "similarity_score_metric": ex_tmp['similarity_score_metric'],
-        "cutoff": ex_tmp['cutoff'],
-        "precision": ex_tmp['precision'],
-        "recall": ex_tmp['recall'],
-        "accuracy": ex_tmp['accuracy'],
-        "f_measure": ex_tmp['f_measure']
+        "iteration_level": ex_tmp['iteration_level']
     }
 
-    ex = {
-        "id": 1,
-        "log_type": 'HDFS',
-        "log_file": 'HDFS/HDFS_2k.log',
-        "n_gram_size": 5,
-        "tokenizing_method": 'fixed_length',
-        "encoding_method": 'minimaxir_char_embedding',
-        "hdb_scan_min_cluster_size": 2,
-        "hdb_scan_min_sample": 2,
-        "regex_version": 1,
-        "regex": 'blk_-?\d+||||||(\d+\.){3}\d+(:\d+)?'.split('||||||'),
-        'regex_separator': '||||||',
-        "experiment_status": 'not started',
-        "start_time": '2020-01-01 00:00:00.000000',
-        "end_time": '2020-01-01 00:00:00.000000',
-        "similarity_score_metric": 'cluster_similarity_mean_of_std',
-        "cutoff": 1,
-        "precision": 0,
-        "recall": 0,
-        "accuracy": 0,
-        "f_measure": 0
-    }
-
-    # TURN BACK ON
-    # acknowledge_experiment(api_key, domain, ex)
+    # Once we acknowledge the experiment we can continue.
+    acknowledge_experiment(api_key, domain, ex)
 
     # Directory where the raw log files are contained in
     indir = os.path.join(input_dir, os.path.dirname(ex['log_file']))
@@ -309,6 +362,9 @@ while True:
 
     # Define the hdbscan minimum sample size
     hdb_scan_min_samples = ex['hdb_scan_min_sample']
+
+    # Define the hdbscan distance metric
+    hdb_scan_distance_metric = ex['hdb_scan_distance_metric']
 
     # Define the encoding method
     encoding_method = ex['encoding_method']
@@ -329,13 +385,19 @@ while True:
     k = KpHdbscan(os.path.join('../logs/', log_file_type), function_timer=ft)
 
     # Set the regex_mode to False if we have no regular expressions defined.
-    if ex['regex']:
+    if ex['regex'] and ex['regex'] != 'no_regex':
         regex_mode = True
-    else:
+        print("regex mode is True: {}".format(ex['regex']))
+
+    elif ex['regex'] == 'no_regex':
         regex_mode = False
+        print("regex mode is False: {}".format(ex['regex']))
 
     # Load the raw logs
     logs = k.load_logs(regexes=ex['regex'], regex_mode=regex_mode, function_timer=ft)
+
+    # Get the number of log entries in the file
+    ex['log_file_lines'] = len(logs)
 
     # Create a standard list of dictionaries for the log messages. See the function to figure out what "standard" is.
     logs = KpHdbscan.create_standard_log_dictionary(logs, n_gram_size,
@@ -346,33 +408,40 @@ while True:
     # Return a regular list of tokens, we need this for numpy.
     vec_logs = KpHdbscan.get_list_of_tokens(logs, function_timer=ft)
 
-    # print("finished get list of tokens")
-    #
-    # vec_logs=[]
-    # for tmp_vec_log in tmp_vec_logs:
-    #     flat_list = [item for sublist in tmp_vec_log for item in sublist]
-    #     vec_logs.append(flat_list)
+    if encoding_method == 'default':
+        # If we use the default encoding method then we have one number per column so we can simply
+        # convert it to a numpy array for clustering.
+        numpy_vec_logs = np.array(vec_logs)
+    elif encoding_method == 'minimaxir_char_embedding':
 
-    # Make a numpy array of the tokens
-    # numpy_vec_logs = np.array(vec_logs)
-    tmp_numpy_vec_logs = np.array(vec_logs)
+        # Make a numpy array of the tokens
+        tmp_numpy_vec_logs = np.array(vec_logs)
 
-    chunks, character, character_embedding = tmp_numpy_vec_logs.shape
-    #
-    numpy_vec_logs = tmp_numpy_vec_logs.reshape(chunks, character * character_embedding)
+        # Get the shape of numpy array
+        chunks, character, character_embedding = tmp_numpy_vec_logs.shape
+
+        # Combine the character embedding of each chunk into one dimension
+        numpy_vec_logs = tmp_numpy_vec_logs.reshape(chunks, character * character_embedding)
 
     # Instantiate the clustering algorithm
-    # kp_hdbscan = KpHdbscan.initialize_hdbscan(hdb_scan_min_cluster_size=hdb_scan_min_cluster_size,
-    #                                          hdb_scan_min_samples=hdb_scan_min_samples,
-    #                                          function_timer=ft)
+    kp_hdbscan = KpHdbscan.initialize_hdbscan(hdb_scan_min_cluster_size=hdb_scan_min_cluster_size,
+                                              hdb_scan_min_samples=hdb_scan_min_samples,
+                                              hdb_scan_distance_metric=hdb_scan_distance_metric,
+                                              function_timer=ft)
 
     # Cluster the data
-    # kp_hdbscan = KpHdbscan.cluster_data(hdbscan_object=kp_hdbscan, data=numpy_vec_logs, function_timer=ft)
+    if ft:
+        # Start Timer
+        start_time = time.time()
+
+    kp_hdbscan = KpHdbscan.cluster_data(hdbscan_object=kp_hdbscan, data=numpy_vec_logs, function_timer=ft)
+
+    if ft:
+        ex['clustering_duration_seconds'] = time.time() - start_time
 
     # Pickle the clustering result
     # pickle.dump(kp_hdbscan, open("save.p", "wb"))
-
-    kp_hdbscan = pickle.load(open("save.p", "rb"))
+    # kp_hdbscan = pickle.load(open("save.p", "rb"))
 
     # Get a list of cluster labels and their probabilities
     labels_probabilities = KpHdbscan.get_cluster_labels_probabilities(hdbscan_object=kp_hdbscan)
@@ -387,7 +456,21 @@ while True:
         labels_probabilities_vectors = pd.concat(
             [pd.DataFrame(labels_probabilities), pd.DataFrame(vec_logs), pd.DataFrame(numpy_vec_logs)], axis=1)
 
-    user_defined_pd_columns = ['cluster', 'cluster_probability']
+    # The silhouette_score gives the average value for all the samples. This gives a perspective into the density and
+    # separation of the formed clusters. The best value is 1 and the worst value is -1. Values near 0 indicate
+    # overlapping clusters. Negative values generally indicate that a sample has been assigned to the wrong cluster,
+    # as a different cluster is more similar.
+    cluster_similarity_overall_silhouette_score = silhouette_score(numpy_vec_logs, labels)
+
+    # Compute the silhouette scores for each sample. The best value is 1 and the worst value is -1.
+    # Values near 0 indicate overlapping clusters.
+    cluster_similarity_silhouette_samples = silhouette_samples(numpy_vec_logs, labels)
+
+    # Computes the Davies-Bouldin score. The minimum score is zero, with lower values indicating better clustering.
+    cluster_similarity_overall_davies_bouldin_score = davies_bouldin_score(numpy_vec_logs, labels)
+
+    # An array of user defined columns
+    user_defined_pd_columns = ['cluster', 'cluster_similarity_each_sample_hdbscan_probability']
 
     # Get columns for new Data Frame.
     labels_probabilities_vectors_columns = KpPandasDataFrameHelper.create_column_headers(
@@ -400,6 +483,11 @@ while True:
     # Add empty decoded_vector column
     labels_probabilities_vectors['decoded_vector'] = "decoded"
     user_defined_pd_columns.append('decoded_vector')
+
+    # At this point we can update the database with the number of log chunks and the number of clusters
+    ex['log_chunk_count'] = len(labels_probabilities_vectors)
+    ex['cluster_count'] = labels_probabilities_vectors['cluster'].nunique()
+    update_experiment(api_key, domain, ex)
 
     # Get the column indexes for for the vector columns.
     # Vector columns are the ones we will be performing operations on.
@@ -417,56 +505,60 @@ while True:
 
     # We will use group by to perform operations on each cluster
     if ex['encoding_method'] == 'minimaxir_char_embedding':
-        cluster_similarity_sum_of_variances = labels_probabilities_vectors.groupby('cluster')[
+        cluster_similarity_each_cluster_sum_of_variances = labels_probabilities_vectors.groupby('cluster')[
             col_indexes_vector_columns_names].var().sum(axis=1)
     elif ex['encoding_method'] == 'default':
-        cluster_similarity_sum_of_variances = labels_probabilities_vectors.groupby('cluster')[
+        cluster_similarity_each_cluster_sum_of_variances = labels_probabilities_vectors.groupby('cluster')[
             col_indexes_vector_columns_names].var().sum(axis=1)
 
     # Create a new column for the similarity measure
-    labels_probabilities_vectors['cluster_similarity_sum_of_variances'] = labels_probabilities_vectors[
+    labels_probabilities_vectors['cluster_similarity_each_cluster_sum_of_variances'] = labels_probabilities_vectors[
         'cluster'].map(
-        cluster_similarity_sum_of_variances.to_dict())
+        cluster_similarity_each_cluster_sum_of_variances.to_dict())
 
-    user_defined_pd_columns.append('cluster_similarity_sum_of_variances')
+    user_defined_pd_columns.append('cluster_similarity_each_cluster_sum_of_variances')
 
     if ft:
-        print("cluster_similarity_sum_of_variances Computed \t\t\t\t %s seconds ---" % (time.time() - start_time))
+        print("cluster_similarity_each_cluster_sum_of_variances Computed \t\t\t\t %s seconds ---" % (
+                    time.time() - start_time))
 
     if ft:
         # Start Timer
         start_time = time.time()
 
     # We will use group by to perform operations on each cluster
-    cluster_similarity_mean_of_variances = labels_probabilities_vectors.groupby('cluster')[
+    cluster_similarity_each_cluster_mean_of_variances = labels_probabilities_vectors.groupby('cluster')[
         col_indexes_vector_columns_names].var().mean(axis=1)
 
     # Create a new column for the similarity measure
-    labels_probabilities_vectors['cluster_similarity_mean_of_variances'] = labels_probabilities_vectors[
+    labels_probabilities_vectors['cluster_similarity_each_cluster_mean_of_variances'] = labels_probabilities_vectors[
         'cluster'].map(
-        cluster_similarity_mean_of_variances.to_dict())
+        cluster_similarity_each_cluster_mean_of_variances.to_dict())
 
-    user_defined_pd_columns.append('cluster_similarity_mean_of_variances')
+    user_defined_pd_columns.append('cluster_similarity_each_cluster_mean_of_variances')
 
     if ft:
-        print("cluster_similarity_mean_of_variances Computed \t\t\t\t %s seconds ---" % (time.time() - start_time))
+        print("cluster_similarity_each_cluster_mean_of_variances Computed \t\t\t\t %s seconds ---" % (
+                    time.time() - start_time))
 
     if ft:
         # Start Timer
         start_time = time.time()
 
     # We will use group by to perform operations on each cluster
-    cluster_similarity_mean_of_std = labels_probabilities_vectors.groupby('cluster')[
+    cluster_similarity_each_cluster_mean_of_std = labels_probabilities_vectors.groupby('cluster')[
         col_indexes_vector_columns_names].std().mean(axis=1)
 
     # Create a new column for the similarity measure
-    labels_probabilities_vectors['cluster_similarity_mean_of_std'] = labels_probabilities_vectors['cluster'].map(
-        cluster_similarity_mean_of_std.to_dict())
+    labels_probabilities_vectors['cluster_similarity_each_cluster_mean_of_std'] = labels_probabilities_vectors[
+        'cluster'].map(
+        cluster_similarity_each_cluster_mean_of_std.to_dict())
 
-    user_defined_pd_columns.append('cluster_similarity_mean_of_std')
+    user_defined_pd_columns.append('cluster_similarity_each_cluster_mean_of_std')
 
     if ft:
-        print("cluster_similarity_mean_of_std Computed \t\t\t\t %s seconds ---" % (time.time() - start_time))
+        print(
+            "cluster_similarity_each_cluster_mean_of_std Computed \t\t\t\t %s seconds ---" % (time.time() - start_time))
 
     if ft:
         # Start Timer
@@ -475,7 +567,7 @@ while True:
     if encoding_method == 'default':
         # Get our decoded tokens into a dictionary. We will map back to the Pandas Data Frame using th index.
         decoded_tokens = labels_probabilities_vectors[col_indexes_vector_columns_names].applymap(
-            KpHdbscan.decode_token).sum(axis=1).to_dict()
+            KpHdbscan.decode_token_default).sum(axis=1).to_dict()
 
         # Create a new column for the decoded tokens
         labels_probabilities_vectors['decoded_vector'] = labels_probabilities_vectors.index.to_series().map(
@@ -483,24 +575,22 @@ while True:
 
     elif encoding_method == 'minimaxir_char_embedding':
         decode_column_names = [col for col in labels_probabilities_vectors.columns if
-                                            col not in user_defined_pd_columns and 'ce_' not in col ]
+                               col not in user_defined_pd_columns and 'ce_' not in col]
 
         # Get our decoded tokens into a dictionary. We will map back to the Pandas Data Frame using th index.
         decoded_tokens = labels_probabilities_vectors[decode_column_names].applymap(
-            KpHdbscan.decode_token).sum(axis=1).to_dict()
+            KpHdbscan.decode_token_minimaxir_char_embedding).sum(axis=1).to_dict()
 
         # Create a new column for the decoded tokens
         labels_probabilities_vectors['decoded_vector'] = labels_probabilities_vectors.index.to_series().map(
             decoded_tokens)
-
-    labels_probabilities_vectors.to_csv("krzysztof_test.csv")
 
     if ft:
         print(
             "labels_probabilities_vectors['decoded_vector'] Computed \t\t\t\t %s seconds ---" % (
                     time.time() - start_time))
 
-    csv_filename = "{}labels_probabilities_vectors.csv".format(log_file_type.replace("/", "_").replace(".", "_"))
+    # csv_filename = "{}labels_probabilities_vectors.csv".format(log_file_type.replace("/", "_").replace(".", "_"))
 
     # Create a new column for the tokenizing_method
     labels_probabilities_vectors['tokenizing_method'] = ex['tokenizing_method']
@@ -514,16 +604,32 @@ while True:
     # Create a new column for the hdb_scan_min_sample
     labels_probabilities_vectors['hdb_scan_min_sample'] = ex['hdb_scan_min_sample']
 
+    # Create a new column for the cluster_similarity_each_sample_silhouette_samples
+    labels_probabilities_vectors[
+        'cluster_similarity_each_sample_silhouette_samples'] = cluster_similarity_silhouette_samples
+
+    # Create a new column for the cluster_similarity_overall_silhouette_score
+    labels_probabilities_vectors[
+        'cluster_similarity_overall_silhouette_score'] = cluster_similarity_overall_silhouette_score
+
+    # Create a new column for the cluster_similarity_overall_davies_bouldin_score
+    labels_probabilities_vectors[
+        'cluster_similarity_overall_davies_bouldin_score'] = cluster_similarity_overall_davies_bouldin_score
+
     # Write the final Data Frame To CSV
-    labels_probabilities_vectors.to_csv(csv_filename, index=False)
+    # labels_probabilities_vectors.to_csv(csv_filename, index=False)
 
     # Write the result to the database
     tmp_columns_upload_db = ['cluster',
-                             'cluster_probability',
+                             'cluster_similarity_each_sample_hdbscan_probability',
                              'decoded_vector',
-                             'cluster_similarity_sum_of_variances',
-                             'cluster_similarity_mean_of_variances',
-                             'cluster_similarity_mean_of_std']
+                             'cluster_similarity_each_cluster_sum_of_variances',
+                             'cluster_similarity_each_cluster_mean_of_variances',
+                             'cluster_similarity_each_cluster_mean_of_std',
+                             'cluster_similarity_each_sample_silhouette_samples',
+                             'cluster_similarity_overall_davies_bouldin_score',
+                             'cluster_similarity_overall_silhouette_score'
+                             ]
 
     # Slice out the columns we want to upload.
     tmp_labels_probabilities_vectors = labels_probabilities_vectors[tmp_columns_upload_db]
@@ -532,132 +638,35 @@ while True:
     tmp_labels_probabilities_vectors = tmp_labels_probabilities_vectors.copy()
 
     # Add the experiment id
-    tmp_labels_probabilities_vectors['experiment'] = ex['id']
+    tmp_labels_probabilities_vectors['experiment_cluster_parameter'] = ex['id']
 
     # Get a list of dictionaries
     tmp_labels_probabilities_vectors = tmp_labels_probabilities_vectors.to_dict(orient='records')
 
-    # n = 1000
-    #
-    # # using list comprehension
-    # upload_chunks = [tmp_labels_probabilities_vectors[i * n:(i + 1) * n] for i in
-    #                  range((len(tmp_labels_probabilities_vectors) + n - 1) // n)]
-    #
-    # num_experimentclusters = len(upload_chunks)
-    #
-    # for key, upload_chunk in enumerate(upload_chunks):
-    #     print("Request {} of {}".format(key + 1, num_experimentclusters))
-    #     upload_experiment_cluster(api_key, domain, upload_chunk)
+    # Filename of the plain json file
+    json_file_name = 'experiment_cluster_{}.json'.format(ex['id'])
 
-    # Here we will extract the relevant clusters by specifying the measure we will use and a cutoff value
-    similarity_score_metric = ex['similarity_score_metric']
+    # Filename of the plain compressed json file
+    json_file_name_gzip = 'experiment_cluster_{}.json.gz'.format(ex['id'])
 
-    cutoff = ex['cutoff']
+    # Write to JSON
+    with open(json_file_name, 'w') as json_file:
+        json.dump(tmp_labels_probabilities_vectors, json_file)
 
-    # Get the list of relevant tokens
-    relevant_tokens = labels_probabilities_vectors.loc[labels_probabilities_vectors[similarity_score_metric] <= cutoff]
+    # Compress JSON
+    with open(json_file_name, 'rb') as f_in:
+        with gzip.open(json_file_name_gzip, 'wb') as f_out:
+            shutil.copyfileobj(f_in, f_out)
 
-    relevant_tokens = labels_probabilities_vectors['decoded_vector'].unique().tolist()
+    # Upload the Compressed File to the Server
+    upload_experiment_cluster_file(api_key,
+                                   domain,
+                                   upload_file={'filename': open(json_file_name_gzip, 'rb')},
+                                   data={'experiment_cluster_id': ex['id']}
+                                   )
 
-    relevant_tokens.sort()
+    # Set the experiment status value
+    ex['experiment_status'] = 'insert_cluster_file'
 
-    csv_lines = []
-
-    cluster_patterns = []
-
-    # Iterate through each log entry
-    for line in logs:
-
-        lnn = line['log']
-
-        # Create an empty list the size of the log entry
-        tmp_lst = [None] * len(lnn)
-
-        # For each relevant_token
-        for relevant_token in relevant_tokens:
-            # If the relevant_token is in the log entry
-            if relevant_token in lnn:
-                # Add the relevant_token to the empty list in the same position as the log
-
-                # Get a list of the lowest indexes for the relevant_tokens found in the line
-                low_index_substrings = find_all_indexes(lnn, relevant_token)
-
-                for low_index_substring in low_index_substrings:
-                    tmp_lst[low_index_substring:low_index_substring + len(relevant_token)] = list(relevant_token)
-
-        cluster_pattern = ''.join([replace_none(token) for token in tmp_lst])
-        cluster_pattern = re.sub('\*\*+', '*', cluster_pattern)
-
-        if cluster_pattern not in cluster_patterns:
-            cluster_patterns.append(cluster_pattern)
-
-        csv_line = {'LineId': line['line'] + 1, "original_log": line["original_log"].strip(),
-                    'EventId': cluster_patterns.index(cluster_pattern),
-                    'cluster_pattern': str(cluster_pattern).strip()}
-
-        csv_lines.append(csv_line)
-
-    fh = os.path.join(output_dir, "{log_file}_structured.csv".format(log_file=log_file[:-4]))
-    f = open(fh, "w")
-    writer = csv.DictWriter(f, csv_lines[0].keys())
-    writer.writeheader()
-    writer.writerows(csv_lines)
-    f.close()
-
-    # upload_lines = []
-    # for c in csv_lines:
-    #     tmp = {
-    #         "experiment": ex['id'],
-    #         "line_id": c['LineId'],
-    #         "original_log": c['original_log'],
-    #         "event_id": c['EventId'],
-    #         "cluster_pattern": c['cluster_pattern']
-    #     }
-    #     upload_lines.append(tmp)
-    #
-    # # Upload CSV
-    # n = 1000
-    #
-    # # using list comprehension
-    # upload_chunks = [upload_lines[i * n:(i + 1) * n] for i in range((len(upload_lines) + n - 1) // n)]
-    #
-    # num_experimentclusters = len(upload_chunks)
-    #
-    # for key, upload_chunk in enumerate(upload_chunks):
-    #     print("Request {} of {}".format(key + 1, num_experimentclusters))
-
-    precision, recall, f_measure, accuracy = evaluator.evaluate(
-        groundtruth=os.path.join(indir, log_file[:-4] + '.log_structured.csv'),
-        parsedresult=os.path.join(output_dir, log_file[:-4] + '_structured.csv')
-    )
-
-    print("hello")
-
-    # # Set the experiment precision value
-    # ex['precision'] = precision
-    #
-    # # Set the experiment recall value
-    # ex['recall'] = recall
-    #
-    # # Set the experiment f_measure value
-    # ex['f_measure'] = f_measure
-    #
-    # # Set the experiment accuracy value
-    # ex['accuracy'] = accuracy
-    #
-    # # Set the experiment status value
-    # ex['experiment_status'] = 'finished'
-    #
-    # ex['end_time'] = datetime.datetime.utcnow()
-    #
-    # expected_cluster_count = len(tmp_labels_probabilities_vectors)
-    # actual_cluster_count = get_experiment_cluster_count(api_key, domain, ex)['experiment_cluster_count']
-    #
-    # if expected_cluster_count != actual_cluster_count:
-    #     raise Exception("Something went wrong uploading experiment clusters! Expected Count {} Actual {} ".format(
-    #         expected_cluster_count, actual_cluster_count))
-    # else:
-    #     print("Expected cluster count matches database!")
-    #
-    # # Update the database
-    # finish_experiment(api_key, domain, experiment=ex)
+    # Update the database
+    finish_experiment(api_key, domain, experiment=ex)

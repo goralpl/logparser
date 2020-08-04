@@ -8,7 +8,7 @@ import sys
 import pandas as pd
 from collections import defaultdict
 import scipy.misc
-
+from scipy.special import comb
 
 def evaluate(groundtruth, parsedresult):
     """ Evaluation function to benchmark log parsing accuracy
@@ -72,7 +72,7 @@ def get_accuracy(series_groundtruth, series_parsedlog, debug=False):
     real_pairs = 0
     for count in series_groundtruth_valuecounts:
         if count > 1:
-            real_pairs += scipy.misc.comb(count, 2)
+            real_pairs += comb(count, 2)
 
     # Group by the parsed event IDs and count how many per Id
     series_parsedlog_valuecounts = series_parsedlog.value_counts()
@@ -81,7 +81,7 @@ def get_accuracy(series_groundtruth, series_parsedlog, debug=False):
     parsed_pairs = 0
     for count in series_parsedlog_valuecounts:
         if count > 1:
-            parsed_pairs += scipy.misc.comb(count, 2)
+            parsed_pairs += comb(count, 2)
 
     accurate_pairs = 0
     accurate_events = 0  # determine how many lines are correctly parsed
@@ -126,7 +126,7 @@ def get_accuracy(series_groundtruth, series_parsedlog, debug=False):
 
             if count > 1:
                 # Get the number of 2 combinations for the count of each ground truth EventId
-                accurate_pairs += scipy.misc.comb(count, 2)
+                accurate_pairs += comb(count, 2)
 
     # End of for loop
     precision = float(accurate_pairs) / parsed_pairs

@@ -94,6 +94,7 @@ def get_random_experiment(api_key, domain):
 
     # Check to see if the response is a 200 OK. If not then retry or error out
     if r.status_code != 200:
+        time.sleep(600)
         raise Exception("Unable to obtain an experiment!")
     else:
         resp = r.json()
@@ -666,7 +667,7 @@ while True:
                                    )
 
     # Set the experiment status value
-    ex['experiment_status'] = 'insert_cluster_file'
+    ex['experiment_cluster_status'] = 'insert_cluster_file'
 
     # Update the database
     finish_experiment(api_key, domain, experiment=ex)

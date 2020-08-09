@@ -38,7 +38,7 @@ class KpHdbscan:
         logs = []
         line_count = 0
         tmp_original_log = ""
-        with open(self.log_path, 'r', encoding='utf-8',errors='ignore') as f:
+        with open(self.log_path, 'r', encoding='utf-8', errors='ignore') as f:
             for num, line in enumerate(f):
                 tmp_original_log = line
 

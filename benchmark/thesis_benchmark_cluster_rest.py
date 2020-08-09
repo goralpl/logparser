@@ -386,13 +386,12 @@ while True:
     k = KpHdbscan(os.path.join('../logs/', log_file_type), function_timer=ft)
 
     # Set the regex_mode to False if we have no regular expressions defined.
-    if ex['regex'] and ex['regex'] != 'no_regex':
-        regex_mode = True
-        print("regex mode is True: {}".format(ex['regex']))
-
-    elif ex['regex'] == 'no_regex':
+    if 'no_regex' in ex['regex']:
         regex_mode = False
         print("regex mode is False: {}".format(ex['regex']))
+    else:
+        regex_mode = True
+        print("regex mode is True: {}".format(ex['regex']))
 
     # Load the raw logs
     logs = k.load_logs(regexes=ex['regex'], regex_mode=regex_mode, function_timer=ft)
@@ -461,14 +460,44 @@ while True:
     # separation of the formed clusters. The best value is 1 and the worst value is -1. Values near 0 indicate
     # overlapping clusters. Negative values generally indicate that a sample has been assigned to the wrong cluster,
     # as a different cluster is more similar.
-    cluster_similarity_overall_silhouette_score = silhouette_score(numpy_vec_logs, labels)
+    if ft:
+        # Start Timer
+        start_time = time.time()
+
+    # cluster_similarity_overall_silhouette_score = silhouette_score(numpy_vec_logs, labels)
+    cluster_similarity_overall_silhouette_score = -1
+
+    if ft:
+        cluster_similarity_overall_silhouette_score_duration_seconds = time.time() - start_time
+        print("cluster_similarity_overall_silhouette_score_duration_seconds: {}".format(
+            cluster_similarity_overall_silhouette_score_duration_seconds))
 
     # Compute the silhouette scores for each sample. The best value is 1 and the worst value is -1.
     # Values near 0 indicate overlapping clusters.
-    cluster_similarity_silhouette_samples = silhouette_samples(numpy_vec_logs, labels)
+    if ft:
+        # Start Timer
+        start_time = time.time()
+
+    # cluster_similarity_silhouette_samples = silhouette_samples(numpy_vec_logs, labels)
+    cluster_similarity_silhouette_samples = -1
+
+    if ft:
+        cluster_similarity_silhouette_samples_duration_seconds = time.time() - start_time
+        print("cluster_similarity_silhouette_samples_duration_seconds:{}".format(
+            cluster_similarity_silhouette_samples_duration_seconds))
 
     # Computes the Davies-Bouldin score. The minimum score is zero, with lower values indicating better clustering.
+    if ft:
+        # Start Timer
+        start_time = time.time()
+
     cluster_similarity_overall_davies_bouldin_score = davies_bouldin_score(numpy_vec_logs, labels)
+
+
+    if ft:
+        cluster_similarity_overall_davies_bouldin_score_duration_seconds = time.time() - start_time
+        print("cluster_similarity_overall_davies_bouldin_score_duration_seconds: {}".format(
+            cluster_similarity_overall_davies_bouldin_score_duration_seconds))
 
     # An array of user defined columns
     user_defined_pd_columns = ['cluster', 'cluster_similarity_each_sample_hdbscan_probability']
@@ -521,7 +550,7 @@ while True:
 
     if ft:
         print("cluster_similarity_each_cluster_sum_of_variances Computed \t\t\t\t %s seconds ---" % (
-                    time.time() - start_time))
+                time.time() - start_time))
 
     if ft:
         # Start Timer
@@ -540,7 +569,7 @@ while True:
 
     if ft:
         print("cluster_similarity_each_cluster_mean_of_variances Computed \t\t\t\t %s seconds ---" % (
-                    time.time() - start_time))
+                time.time() - start_time))
 
     if ft:
         # Start Timer
@@ -650,15 +679,22 @@ while True:
     # Filename of the plain compressed json file
     json_file_name_gzip = 'experiment_cluster_{}.json.gz'.format(ex['id'])
 
-    # Write to JSON
-    with open(json_file_name, 'w') as json_file:
-        json.dump(tmp_labels_probabilities_vectors, json_file)
+    # print("Attempting to write to JSON")
+    # # Write to JSON
+    # with open(json_file_name, 'w') as json_file:
+    #     json.dump(tmp_labels_probabilities_vectors, json_file)
+    #
+    # print("Attempting to write to GZIP JSON")
+    # # Compress JSON
+    # with open(json_file_name, 'rb') as f_in:
+    #     with gzip.open(json_file_name_gzip, 'wb') as f_out:
+    #         shutil.copyfileobj(f_in, f_out)
 
-    # Compress JSON
-    with open(json_file_name, 'rb') as f_in:
-        with gzip.open(json_file_name_gzip, 'wb') as f_out:
-            shutil.copyfileobj(f_in, f_out)
+    print("Attempting to write to GZIP")
+    with gzip.open(json_file_name_gzip, 'wt', encoding="utf-8") as zipfile:
+        json.dump(tmp_labels_probabilities_vectors, zipfile)
 
+    print("Calling Upload Function")
     # Upload the Compressed File to the Server
     upload_experiment_cluster_file(api_key,
                                    domain,
@@ -666,8 +702,10 @@ while True:
                                    data={'experiment_cluster_id': ex['id']}
                                    )
 
+    os.remove(json_file_name_gzip)
+
     # Set the experiment status value
-    ex['experiment_cluster_status'] = 'insert_cluster_file'
+    ex['experiment_cluster_status'] = 'finished'
 
     # Update the database
     finish_experiment(api_key, domain, experiment=ex)

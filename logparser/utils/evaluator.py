@@ -10,6 +10,7 @@ from collections import defaultdict
 import scipy.misc
 from scipy.special import comb
 
+
 def evaluate(groundtruth, parsedresult):
     """ Evaluation function to benchmark log parsing accuracy
     
@@ -73,7 +74,7 @@ def get_accuracy(series_groundtruth, series_parsedlog, debug=False):
     for count in series_groundtruth_valuecounts:
         if count > 1:
             real_pairs += comb(count, 2)
-
+    print('hello')
     # Group by the parsed event IDs and count how many per Id
     series_parsedlog_valuecounts = series_parsedlog.value_counts()
 
@@ -82,7 +83,7 @@ def get_accuracy(series_groundtruth, series_parsedlog, debug=False):
     for count in series_parsedlog_valuecounts:
         if count > 1:
             parsed_pairs += comb(count, 2)
-
+    print('hello')
     accurate_pairs = 0
     accurate_events = 0  # determine how many lines are correctly parsed
 
@@ -129,10 +130,23 @@ def get_accuracy(series_groundtruth, series_parsedlog, debug=False):
                 accurate_pairs += comb(count, 2)
 
     # End of for loop
-    precision = float(accurate_pairs) / parsed_pairs
-    recall = float(accurate_pairs) / real_pairs
+    try:
+        precision = float(accurate_pairs) / parsed_pairs
+    except ZeroDivisionError:
+        precision = -100.00
 
-    f_measure = 2 * precision * recall / (precision + recall)
-    accuracy = float(accurate_events) / series_groundtruth.size
+    try:
+        recall = float(accurate_pairs) / real_pairs
+    except ZeroDivisionError:
+        recall = -100.00
+
+    try:
+        f_measure = 2 * precision * recall / (precision + recall)
+    except ZeroDivisionError:
+        f_measure = -100.00
+    try:
+        accuracy = float(accurate_events) / series_groundtruth.size
+    except ZeroDivisionError:
+        accuracy = -100.00
 
     return precision, recall, f_measure, accuracy

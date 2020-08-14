@@ -679,17 +679,6 @@ while True:
     # Filename of the plain compressed json file
     json_file_name_gzip = 'experiment_cluster_{}.json.gz'.format(ex['id'])
 
-    # print("Attempting to write to JSON")
-    # # Write to JSON
-    # with open(json_file_name, 'w') as json_file:
-    #     json.dump(tmp_labels_probabilities_vectors, json_file)
-    #
-    # print("Attempting to write to GZIP JSON")
-    # # Compress JSON
-    # with open(json_file_name, 'rb') as f_in:
-    #     with gzip.open(json_file_name_gzip, 'wb') as f_out:
-    #         shutil.copyfileobj(f_in, f_out)
-
     print("Attempting to write to GZIP")
     with gzip.open(json_file_name_gzip, 'wt', encoding="utf-8") as zipfile:
         json.dump(tmp_labels_probabilities_vectors, zipfile)

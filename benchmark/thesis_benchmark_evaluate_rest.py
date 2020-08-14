@@ -140,6 +140,28 @@ def get_experiments_experimentclusters(api_key, domain, experiment_cluster_param
 
 
 @retry(stop_max_attempt_number=7, wait_random_min=1000, wait_random_max=15000)
+def get_experiments_experimentclusters_spaces(domain, experiment_cluster_parameter):
+    """
+    This function will reach out to the API server and grab a random experiment for the machine to work on.
+    :param api_key:
+    :param domain:
+    :return:
+    """
+    experiment_clusters = []
+
+    # URL to get a random experiment
+    get_url = 'https://{domain}/media/experiment_cluster_{experiment_cluster_parameter}.json.gz'.format(domain=domain,
+                                                                                                        experiment_cluster_parameter=experiment_cluster_parameter)
+
+    # Make the API Call
+    r = requests.get(get_url)
+
+    experiment_clusters = r.json()
+
+    return experiment_clusters
+
+
+@retry(stop_max_attempt_number=7, wait_random_min=1000, wait_random_max=15000)
 def get_experiment(api_key, domain, id):
     """
     This function will reach out to the API server and grab a random experiment for the machine to work on.
@@ -188,10 +210,37 @@ def finish_experiment_evaluation_parameter(api_key, domain, experiment):
 
     # Check to see if the response is a 200 OK. If not then retry or error out
     if r.status_code not in [200, 201]:
-        print('hello')
         raise Exception("Unable to finish experiment")
     else:
         print("Finished Experiment")
+        return r.json()
+
+
+@retry(stop_max_attempt_number=7, wait_random_min=1000, wait_random_max=15000)
+def upload_experiment_result_file(api_key, domain, upload_file, data):
+    """
+
+    :param api_key:
+    :param domain:
+    :param upload_chunk:
+    :return:
+    """
+    post_url_new_exp_clstr = 'https://{domain}/api/v1/experimentresults/upload'.format(domain=domain)
+
+    print("Attempting to upload experimentresults")
+
+    r = requests.post(url=post_url_new_exp_clstr,
+                      files=upload_file,
+                      data=data,
+                      headers={'Authorization': 'Api-Key {api_key} '.format(api_key=api_key)})
+
+    # Check to see if the response is a 200 OK. If not then retry or error out
+    if r.status_code not in [200, 201]:
+        print(r.status_code)
+        raise Exception("Unable to upload cluster experiment")
+    else:
+
+        print("Uploaded experiment cluster {}".format(data))
         return r.json()
 
 
@@ -207,10 +256,12 @@ def evaluate_v1(exp_eval_params, experiment_cluster_parameter, experiment_cluste
 
     if experiment_cluster_parameter['regex'] == 'no_regex':
         regex_mode = False
+        print("regex mode is False: {}".format(experiment_cluster_parameter['regex']))
     else:
         regex_mode = True
         experiment_cluster_parameter['regex'] = experiment_cluster_parameter['regex'].split(
             experiment_cluster_parameter['regex_separator'])
+        print("regex mode is True: {}".format(experiment_cluster_parameter['regex']))
 
     for ex in exp_eval_params['results']:
         print("Running Experiment Evaluation Parameters: {}".format(ex))
@@ -235,10 +286,18 @@ def evaluate_v1(exp_eval_params, experiment_cluster_parameter, experiment_cluste
 
         cluster_patterns = []
 
-        log_file_type = experiment_cluster_parameter['log_file']
+        # Maps the log_type field in the experiments_experimentclusterparameter table to the ground truth logs
+        ground_truth_logs = {'Linux_ground_truth': 'Linux_2k.log_structured.csv',
+                             'Linux_2k': 'Linux_2k.log'
+                             }
+        # Get the file name for the ground truth log from the above dictionary
+        ground_truth_log = ground_truth_logs[experiment_cluster_parameter['log_type'] + '_ground_truth']
+
+        # Load the original 2K logs.
+        original_2k_logs = ground_truth_logs[experiment_cluster_parameter['log_type'] + '_2k']
 
         # Instantiate KpHdbscan
-        k = KpHdbscan(os.path.join('../logs/', log_file_type))
+        k = KpHdbscan(os.path.join(indir, original_2k_logs))
 
         # Load the raw logs
         logs = k.load_logs(regexes=experiment_cluster_parameter['regex'], regex_mode=regex_mode)
@@ -272,27 +331,46 @@ def evaluate_v1(exp_eval_params, experiment_cluster_parameter, experiment_cluste
                 cluster_patterns.append(cluster_pattern)
 
             csv_line = {'LineId': line['line'] + 1, "original_log": line["original_log"].strip(),
-                        'EventId': cluster_patterns.index(cluster_pattern),
+                        'EventId': 'E' + str(cluster_patterns.index(cluster_pattern) + 1),
                         'cluster_pattern': str(cluster_pattern).strip()}
 
             csv_lines.append(csv_line)
 
-        fh = os.path.join(output_dir, "{log_file}_structured.csv".format(log_file=log_file[:-4].split("/")[1]))
+        fn = "{log_file}_structured.csv".format(log_file=log_file[:-4].split("/")[1])
+
+        fh = os.path.join(output_dir, fn)
         f = open(fh, "w")
         writer = csv.DictWriter(f, csv_lines[0].keys())
         writer.writeheader()
         writer.writerows(csv_lines)
         f.close()
 
-        precision, recall, f_measure, accuracy = evaluator.evaluate(
-            groundtruth=os.path.join(indir,
-                                     "{log_file}.log_structured.csv".format(log_file=log_file[:-4].split("/")[1])),
-            parsedresult=os.path.join(output_dir,
-                                      "{log_file}_structured.csv".format(log_file=log_file[:-4].split("/")[1]))
+        file_name_gzip = "{log_file}_{experiment_cluster_id}_{experiment_evaluation_parameter_id}_structured.csv.gz".format(
+            log_file=log_file[:-4].split("/")[1],
+            experiment_cluster_id=experiment_cluster_parameter['id'],
+            experiment_evaluation_parameter_id=ex['id']
         )
 
-        print(
-            "precision: {} \t recall: {} \t f_measure: {} accuracy: {}".format(precision, recall, f_measure, accuracy))
+        with open(os.path.join(output_dir, fn), 'rb') as f_in:
+            with gzip.open(file_name_gzip, 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
+
+        # Write csv lines to the webserver
+        upload_experiment_result_file(api_key=api_key,
+                                      domain=domain,
+                                      upload_file={'filename': open(file_name_gzip, 'rb')},
+                                      data={'experiment_cluster_id': experiment_cluster_parameter['id'],
+                                            'experiment_evaluation_parameter_id': ex['id']})
+        # Delete the GZ file
+        os.remove(file_name_gzip)
+
+        precision, recall, f_measure, accuracy = evaluator.evaluate(
+            groundtruth=os.path.join(indir, ground_truth_log),
+            parsedresult=os.path.join(output_dir, fn)
+        )
+
+        print('Precision: %.4f, Recall: %.4f, F1_measure: %.4f, Parsing_Accuracy: %.4f' % (
+            precision, recall, f_measure, accuracy))
 
         # # Set the experiment precision value
         ex['precision'] = precision
@@ -323,7 +401,7 @@ output_dir = 'thesis_result'
 domain = 'www.kpthesisexperiments.com'
 
 # API Key for the server
-api_key = 'LaaKiRB3.wlzQc3w90mzkL7wVBs39FrVkchOpRMHW'
+api_key = 'ZCA4Wluw.wlBavJG6xD18LzdhYxmPfMvUzL7Apwsr'
 
 # Get the experiment evaluation parameters as a Dictionary
 exp_eval_params = get_random_experiment_evaluation_parameters(api_key, domain)
@@ -335,6 +413,7 @@ experiment_cluster_parameter_id = exp_eval_params['results'][0]['experiment_clus
 experiment_cluster_parameter = get_experiment(api_key, domain, experiment_cluster_parameter_id)['results'][0]
 
 # Get the experiment clusters for that parameter
-experiment_clusters = get_experiments_experimentclusters(api_key, domain, experiment_cluster_parameter_id)
+experiment_clusters = get_experiments_experimentclusters_spaces(
+    domain='kpthesisexperiments.nyc3.digitaloceanspaces.com', experiment_cluster_parameter=1)
 
 evaluate_v1(exp_eval_params, experiment_cluster_parameter, experiment_clusters)

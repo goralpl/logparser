@@ -155,7 +155,7 @@ def get_experiments_experimentclusters_spaces(domain, experiment_cluster_paramet
 
     # Make the API Call
     r = requests.get(get_url)
-
+    print('this ran')
     experiment_clusters = r.json()
 
     return experiment_clusters
@@ -414,6 +414,6 @@ experiment_cluster_parameter = get_experiment(api_key, domain, experiment_cluste
 
 # Get the experiment clusters for that parameter
 experiment_clusters = get_experiments_experimentclusters_spaces(
-    domain='kpthesisexperiments.nyc3.digitaloceanspaces.com', experiment_cluster_parameter=1)
+    domain='kpthesisexperiments.nyc3.digitaloceanspaces.com', experiment_cluster_parameter=experiment_cluster_parameter_id)
 
 evaluate_v1(exp_eval_params, experiment_cluster_parameter, experiment_clusters)

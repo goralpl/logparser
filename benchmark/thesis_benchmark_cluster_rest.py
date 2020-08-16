@@ -349,17 +349,17 @@ while True:
         "iteration_level": ex_tmp['iteration_level']
     }
 
-    # Assign the values to the local experiment dictionary
+    # # Assign the values to the local experiment dictionary
     # ex = {
-    #     "id": 58179,
+    #     "id": 7724,
     #     "log_type": 'Linux',
-    #     "log_file": 'Linux/Linux_Full.log',
+    #     "log_file": 'Linux/Linux_2k.log',
     #     "log_file_lines": 0,
-    #     "n_gram_size": 37,
+    #     "n_gram_size": 25,
     #     "tokenizing_method": 'fixed_length',
     #     "encoding_method": 'minimaxir_char_embedding',
-    #     "hdb_scan_min_cluster_size": 52,
-    #     "hdb_scan_min_sample":12,
+    #     "hdb_scan_min_cluster_size": 77,
+    #     "hdb_scan_min_sample":7,
     #     "hdb_scan_distance_metric": 'euclidean',
     #     "regex_version": 0,
     #     "regex": 'no_regex',
@@ -439,7 +439,7 @@ while True:
     elif encoding_method == 'minimaxir_char_embedding':
 
         # Make a numpy array of the tokens
-        tmp_numpy_vec_logs = np.array(vec_logs,dtype=object)
+        tmp_numpy_vec_logs = np.array(vec_logs, dtype=object)
         test = tmp_numpy_vec_logs.shape
         # Get the shape of numpy array
         chunks, character, character_embedding = tmp_numpy_vec_logs.shape
@@ -477,8 +477,8 @@ while True:
     if encoding_method == 'default':
         labels_probabilities_vectors = pd.concat([pd.DataFrame(labels_probabilities), pd.DataFrame(vec_logs)], axis=1)
     elif encoding_method == 'minimaxir_char_embedding':
-        labels_probabilities_vectors = pd.concat(
-            [pd.DataFrame(labels_probabilities), pd.DataFrame(vec_logs), pd.DataFrame(numpy_vec_logs)], axis=1)
+        labels_probabilities_vectors = pd.concat([pd.DataFrame(labels_probabilities), pd.DataFrame(vec_logs),
+                                                  pd.DataFrame(numpy_vec_logs).astype(np.float64)], axis=1)
 
     # The silhouette_score gives the average value for all the samples. This gives a perspective into the density and
     # separation of the formed clusters. The best value is 1 and the worst value is -1. Values near 0 indicate
@@ -517,7 +517,6 @@ while True:
 
     cluster_similarity_overall_davies_bouldin_score = davies_bouldin_score(numpy_vec_logs, labels)
 
-
     if ft:
         cluster_similarity_overall_davies_bouldin_score_duration_seconds = time.time() - start_time
         print("cluster_similarity_overall_davies_bouldin_score_duration_seconds: {}".format(
@@ -550,8 +549,7 @@ while True:
                                             col not in user_defined_pd_columns]
 
     elif encoding_method == 'minimaxir_char_embedding':
-        col_indexes_vector_columns_names = [col for col in labels_probabilities_vectors.columns if
-                                            col not in user_defined_pd_columns and 'ce_' in col]
+        col_indexes_vector_columns_names = [col for col in labels_probabilities_vectors.columns if 'ce_' in col]
 
     if ft:
         # Start Timer
@@ -567,8 +565,7 @@ while True:
 
     # Create a new column for the similarity measure
     labels_probabilities_vectors['cluster_similarity_each_cluster_sum_of_variances'] = labels_probabilities_vectors[
-        'cluster'].map(
-        cluster_similarity_each_cluster_sum_of_variances.to_dict())
+        'cluster'].map(cluster_similarity_each_cluster_sum_of_variances.to_dict())
 
     user_defined_pd_columns.append('cluster_similarity_each_cluster_sum_of_variances')
 

@@ -38,10 +38,11 @@ class KpHdbscan:
         logs = []
         line_count = 0
         tmp_original_log = ""
-        with open(self.log_path, 'r', encoding='utf-8', errors='ignore') as f:
+        with open(self.log_path, 'r', encoding='utf-8', errors='surrogateescape') as f:
             for num, line in enumerate(f):
+                # Remove whitespace
+                line = line.rstrip()
                 tmp_original_log = line
-
                 if regex_mode:
                     if strip_date:
                         line = line[26:]
@@ -53,6 +54,11 @@ class KpHdbscan:
                 line_count = line_count + 1
 
         self.log_list = logs
+
+        if function_timer:
+            print("KpHdbscan.load_logs() \t\t\t\t %s seconds ---" % (time.time() - start_time))
+
+        return logs
 
         if function_timer:
             print("KpHdbscan.load_logs() \t\t\t\t %s seconds ---" % (time.time() - start_time))
@@ -166,7 +172,6 @@ class KpHdbscan:
                     else:
                         tokens.append(candidate_token)
         elif tokenizing_method == "fixed_length":
-
             if encoded:
                 tokens = [KpHdbscan.encode_token(original_message[i: i + n_gram].ljust(n_gram),
                                                  encoding_method=encoding_method) for i in
@@ -200,7 +205,6 @@ class KpHdbscan:
 
         # encode the string into number representation
         for char in token:
-
             # Depending on the encoding scheme, use a different encoding method.
             if encoding_method == 'default':
                 encoded_string.append(ord(char))

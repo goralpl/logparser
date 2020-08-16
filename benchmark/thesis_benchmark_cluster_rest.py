@@ -349,6 +349,30 @@ while True:
         "iteration_level": ex_tmp['iteration_level']
     }
 
+    # Assign the values to the local experiment dictionary
+    # ex = {
+    #     "id": 58179,
+    #     "log_type": 'Linux',
+    #     "log_file": 'Linux/Linux_Full.log',
+    #     "log_file_lines": 0,
+    #     "n_gram_size": 37,
+    #     "tokenizing_method": 'fixed_length',
+    #     "encoding_method": 'minimaxir_char_embedding',
+    #     "hdb_scan_min_cluster_size": 52,
+    #     "hdb_scan_min_sample":12,
+    #     "hdb_scan_distance_metric": 'euclidean',
+    #     "regex_version": 0,
+    #     "regex": 'no_regex',
+    #     'regex_separator': '||||||',
+    #     "experiment_cluster_status": 'not started',
+    #     "clustering_duration_seconds": 0,
+    #     "cluster_count": 0,
+    #     "log_chunk_count": 0,
+    #     "start_time": '2020-08-15 02:49:00.071319',
+    #     "end_time": '2020-01-01 00:00:00.000000',
+    #     "iteration_level": 1
+    # }
+
     # Once we acknowledge the experiment we can continue.
     acknowledge_experiment(api_key, domain, ex)
 
@@ -415,8 +439,8 @@ while True:
     elif encoding_method == 'minimaxir_char_embedding':
 
         # Make a numpy array of the tokens
-        tmp_numpy_vec_logs = np.array(vec_logs)
-
+        tmp_numpy_vec_logs = np.array(vec_logs,dtype=object)
+        test = tmp_numpy_vec_logs.shape
         # Get the shape of numpy array
         chunks, character, character_embedding = tmp_numpy_vec_logs.shape
 

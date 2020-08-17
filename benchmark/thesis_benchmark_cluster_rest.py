@@ -460,6 +460,8 @@ while True:
 
     kp_hdbscan = KpHdbscan.cluster_data(hdbscan_object=kp_hdbscan, data=numpy_vec_logs, function_timer=ft)
 
+    print("clustering complete")
+
     if ft:
         ex['clustering_duration_seconds'] = time.time() - start_time
 

@@ -390,30 +390,30 @@ def evaluate_v1(exp_eval_params, experiment_cluster_parameter, experiment_cluste
         # Update the database
         finish_experiment_evaluation_parameter(api_key, domain, experiment=ex)
 
+while True:
+    # The input directory of log file. This is where the raw logs are stored
+    input_dir = '../logs/'
 
-# The input directory of log file. This is where the raw logs are stored
-input_dir = '../logs/'
+    # The output directory of parsing results
+    output_dir = 'thesis_result'
 
-# The output directory of parsing results
-output_dir = 'thesis_result'
+    # Domain for the REST API server
+    domain = 'www.kpthesisexperiments.com'
 
-# Domain for the REST API server
-domain = 'www.kpthesisexperiments.com'
+    # API Key for the server
+    api_key = 'ZCA4Wluw.wlBavJG6xD18LzdhYxmPfMvUzL7Apwsr'
 
-# API Key for the server
-api_key = 'ZCA4Wluw.wlBavJG6xD18LzdhYxmPfMvUzL7Apwsr'
+    # Get the experiment evaluation parameters as a Dictionary
+    exp_eval_params = get_random_experiment_evaluation_parameters(api_key, domain)
 
-# Get the experiment evaluation parameters as a Dictionary
-exp_eval_params = get_random_experiment_evaluation_parameters(api_key, domain)
+    # From the experiment evaluation parameters, get the first item and extract the experiment_cluster_parameter_id
+    experiment_cluster_parameter_id = exp_eval_params['results'][0]['experiment_cluster_parameter']
 
-# From the experiment evaluation parameters, get the first item and extract the experiment_cluster_parameter_id
-experiment_cluster_parameter_id = exp_eval_params['results'][0]['experiment_cluster_parameter']
+    # Get the experiment_cluster_parameter form the database
+    experiment_cluster_parameter = get_experiment(api_key, domain, experiment_cluster_parameter_id)['results'][0]
 
-# Get the experiment_cluster_parameter form the database
-experiment_cluster_parameter = get_experiment(api_key, domain, experiment_cluster_parameter_id)['results'][0]
+    # Get the experiment clusters for that parameter
+    experiment_clusters = get_experiments_experimentclusters_spaces(
+        domain='kpthesisexperiments.nyc3.digitaloceanspaces.com', experiment_cluster_parameter=experiment_cluster_parameter_id)
 
-# Get the experiment clusters for that parameter
-experiment_clusters = get_experiments_experimentclusters_spaces(
-    domain='kpthesisexperiments.nyc3.digitaloceanspaces.com', experiment_cluster_parameter=experiment_cluster_parameter_id)
-
-evaluate_v1(exp_eval_params, experiment_cluster_parameter, experiment_clusters)
+    evaluate_v1(exp_eval_params, experiment_cluster_parameter, experiment_clusters)

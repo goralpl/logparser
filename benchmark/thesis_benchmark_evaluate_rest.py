@@ -390,7 +390,9 @@ def evaluate_v1(exp_eval_params, experiment_cluster_parameter, experiment_cluste
         # Update the database
         finish_experiment_evaluation_parameter(api_key, domain, experiment=ex)
 
+
 while True:
+    print('New code')
     # The input directory of log file. This is where the raw logs are stored
     input_dir = '../logs/'
 
@@ -414,6 +416,7 @@ while True:
 
     # Get the experiment clusters for that parameter
     experiment_clusters = get_experiments_experimentclusters_spaces(
-        domain='kpthesisexperiments.nyc3.digitaloceanspaces.com', experiment_cluster_parameter=experiment_cluster_parameter_id)
+        domain='kpthesisexperiments.nyc3.digitaloceanspaces.com',
+        experiment_cluster_parameter=experiment_cluster_parameter_id)
 
     evaluate_v1(exp_eval_params, experiment_cluster_parameter, experiment_clusters)
